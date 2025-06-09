@@ -1,6 +1,15 @@
-"use client"
+"use client";
 
-import { Database, Calendar, FileText, Mail, Settings, Terminal, Plus, LogOut } from "lucide-react"
+import {
+  Database,
+  Calendar,
+  FileText,
+  Mail,
+  Settings,
+  Terminal,
+  Plus,
+  LogOut,
+} from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -12,11 +21,12 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-} from "@/components/ui/sidebar"
-import Link from "next/link"
-import { usePathname } from "next/navigation"
-import { useState, useEffect } from "react"
-import { ConfirmationModal } from "@/components/confirmation-modal"
+} from "@/components/ui/sidebar";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useState } from "react";
+import { useSession, signOut } from "next-auth/react";
+import { ConfirmationModal } from "@/components/confirmation-modal";
 
 const menuItems = [
   {
@@ -44,27 +54,21 @@ const menuItems = [
     url: "/gmail",
     icon: Mail,
   },
-]
+];
 
 export function AppSidebar() {
-  const pathname = usePathname()
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [showLogoutModal, setShowLogoutModal] = useState(false)
+  const pathname = usePathname();
+  const { data: session } = useSession();
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
-  useEffect(() => {
-    const gmailConnected = localStorage.getItem("void-gmail-connected")
-    setIsAuthenticated(gmailConnected === "true")
-  }, [])
-
-  const handleLogout = () => {
-    localStorage.removeItem("void-gmail-connected")
-    localStorage.removeItem("void-gmail-connected-date")
-    localStorage.removeItem("void-user-email")
-    localStorage.removeItem("void-applications")
-    localStorage.removeItem("void-documents")
-    localStorage.removeItem("void-settings")
-    window.location.href = "/auth"
-  }
+  const handleLogout = async () => {
+    try {
+      await signOut({ callbackUrl: "/auth" });
+    } catch (error) {
+      console.error("Error signing out:", error);
+    }
+    setShowLogoutModal(false);
+  };
 
   return (
     <>
@@ -73,15 +77,21 @@ export function AppSidebar() {
           <div className="flex items-center gap-2">
             <Terminal className="h-6 w-6 text-[#00F57A]" />
             <div>
-              <h1 className="font-mono text-lg font-medium text-white">The Void</h1>
-              <p className="text-xs text-gray-400 font-mono">/dev/null {">"} applications</p>
+              <h1 className="font-mono text-lg font-medium text-white">
+                The Void
+              </h1>
+              <p className="text-xs text-gray-400 font-mono">
+                /dev/null {">"} applications
+              </p>
             </div>
           </div>
         </SidebarHeader>
 
         <SidebarContent>
           <SidebarGroup>
-            <SidebarGroupLabel className="font-mono text-gray-400">Navigation</SidebarGroupLabel>
+            <SidebarGroupLabel className="font-mono text-gray-400">
+              Navigation
+            </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 {menuItems.map((item) => (
@@ -103,7 +113,9 @@ export function AppSidebar() {
           </SidebarGroup>
 
           <SidebarGroup>
-            <SidebarGroupLabel className="font-mono text-gray-400">Quick Actions</SidebarGroupLabel>
+            <SidebarGroupLabel className="font-mono text-gray-400">
+              Quick Actions
+            </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
@@ -120,7 +132,7 @@ export function AppSidebar() {
         </SidebarContent>
 
         {/* Only show footer with logout if authenticated */}
-        {isAuthenticated && (
+        {session && (
           <SidebarFooter className="border-t border-gray-800 p-4">
             <SidebarMenu>
               <SidebarMenuItem>
@@ -151,10 +163,10 @@ export function AppSidebar() {
         onClose={() => setShowLogoutModal(false)}
         onConfirm={handleLogout}
         title="Sign Out"
-        description={`Are you sure you want to sign out?\n\nThis will:\n• End your current session\n• Clear all local data (applications, documents, settings)\n• Return you to the login screen\n\nAll your data will be lost unless you've exported it.`}
+        description={`Are you sure you want to sign out?\n\nThis will:\n• End your current session\n• Return you to the login screen\n\nYou'll need to sign in again to access The Void.`}
         confirmText="Sign Out"
         destructive={true}
       />
     </>
-  )
+  );
 }
