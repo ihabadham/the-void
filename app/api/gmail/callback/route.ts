@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { exchangeCodeForTokens } from "@/lib/gmail-server";
+import { storeGmailTokensSecurely } from "@/lib/gmail-token-store";
 
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
 
-    if (!session) {
+    if (!session?.user?.email) {
       return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/auth`);
     }
 
@@ -27,14 +28,15 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    // Exchange code for tokens server-side
     const tokens = await exchangeCodeForTokens(code);
 
-    // TODO: Store tokens (in production, this would be in database)
-    // For now, we'll redirect with tokens in query params (not ideal, but for demo)
-    const tokensEncoded = encodeURIComponent(JSON.stringify(tokens));
+    // Store tokens securely server-side (not in localStorage or URL)
+    await storeGmailTokensSecurely(session.user.email, tokens);
 
+    // Redirect with only a success flag - no sensitive data in URL
     return NextResponse.redirect(
-      `${process.env.NEXTAUTH_URL}/gmail?success=true&tokens=${tokensEncoded}`
+      `${process.env.NEXTAUTH_URL}/gmail?success=true`
     );
   } catch (error) {
     console.error("Gmail callback error:", error);

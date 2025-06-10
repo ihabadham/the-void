@@ -18,15 +18,24 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useSession } from "next-auth/react";
 import { ConfirmationModal } from "@/components/confirmation-modal";
-import { storeGmailTokens, clearGmailTokens } from "@/lib/gmail-client";
 import { useRouter, useSearchParams } from "next/navigation";
+
+interface GmailConnectionInfo {
+  isConnected: boolean;
+  connectedAt: string | null;
+  lastAccessed: string | null;
+}
 
 export default function GmailPage() {
   const { data: session } = useSession();
-  const [isConnected, setIsConnected] = useState(false);
+  const [connectionInfo, setConnectionInfo] = useState<GmailConnectionInfo>({
+    isConnected: false,
+    connectedAt: null,
+    lastAccessed: null,
+  });
   const [isConnecting, setIsConnecting] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [lastSync, setLastSync] = useState<string | null>(null);
+  const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [keywords, setKeywords] = useState(
     "job application, interview, assessment, offer, rejection"
   );
@@ -35,34 +44,36 @@ export default function GmailPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  // Fetch Gmail connection status securely from API
+  const fetchConnectionStatus = async () => {
+    if (!session?.user?.email) return;
+
+    try {
+      const response = await fetch("/api/gmail/status");
+      if (response.ok) {
+        const data = await response.json();
+        setConnectionInfo(data);
+      } else {
+        console.error("Failed to fetch Gmail status");
+      }
+    } catch (error) {
+      console.error("Error fetching Gmail status:", error);
+    }
+  };
+
   useEffect(() => {
-    // Check if we're returning from Gmail OAuth
+    // Check for OAuth callback success/error
     const success = searchParams.get("success");
-    const tokens = searchParams.get("tokens");
     const error = searchParams.get("error");
 
-    if (success && tokens && session?.user?.email) {
-      try {
-        const parsedTokens = JSON.parse(decodeURIComponent(tokens));
-        storeGmailTokens(session.user.email, parsedTokens);
-        setIsConnected(true);
-        setLastSync(new Date().toISOString());
-
-        toast({
-          title: "Gmail connected successfully",
-          description: "The void now has access to your email abyss.",
-        });
-
-        // Clean up URL
-        router.replace("/gmail");
-      } catch (err) {
-        console.error("Error parsing tokens:", err);
-        toast({
-          title: "Connection failed",
-          description: "Failed to process Gmail connection.",
-          variant: "destructive",
-        });
-      }
+    if (success === "true") {
+      toast({
+        title: "Gmail connected successfully",
+        description: "The void now has access to your email abyss.",
+      });
+      // Clean up URL and refresh status
+      router.replace("/gmail");
+      fetchConnectionStatus();
     }
 
     if (error) {
@@ -74,14 +85,8 @@ export default function GmailPage() {
       router.replace("/gmail");
     }
 
-    // Check existing connection
-    const gmailConnected = localStorage.getItem("void-gmail-connected");
-    const connectedDate = localStorage.getItem("void-gmail-connected-date");
-
-    if (gmailConnected === "true") {
-      setIsConnected(true);
-      setLastSync(connectedDate || new Date().toISOString());
-    }
+    // Fetch initial connection status
+    fetchConnectionStatus();
   }, [searchParams, session, router, toast]);
 
   const handleConnectGmail = async () => {
@@ -117,27 +122,53 @@ export default function GmailPage() {
     }
   };
 
-  const handleDisconnect = () => {
-    clearGmailTokens();
-    setIsConnected(false);
-    setLastSync(null);
-    setShowDisconnectModal(false);
+  const handleDisconnect = async () => {
+    setIsDisconnecting(true);
 
-    toast({
-      title: "Gmail disconnected",
-      description: "The void has released your email connection.",
-    });
+    try {
+      const response = await fetch("/api/gmail/disconnect", {
+        method: "POST",
+      });
+
+      if (response.ok) {
+        setConnectionInfo({
+          isConnected: false,
+          connectedAt: null,
+          lastAccessed: null,
+        });
+        setShowDisconnectModal(false);
+
+        toast({
+          title: "Gmail disconnected",
+          description: "The void has released your email connection.",
+        });
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to disconnect");
+      }
+    } catch (error) {
+      console.error("Disconnect error:", error);
+      toast({
+        title: "Disconnect failed",
+        description: "Failed to disconnect Gmail. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDisconnecting(false);
+    }
   };
 
   const handleSync = async () => {
-    if (!isConnected) return;
+    if (!connectionInfo.isConnected) return;
 
     setIsSyncing(true);
 
     try {
       // TODO: Implement real Gmail sync with our API
       await new Promise((resolve) => setTimeout(resolve, 3000));
-      setLastSync(new Date().toISOString());
+
+      // Refresh connection info to update last accessed time
+      await fetchConnectionStatus();
 
       toast({
         title: "Sync completed",
@@ -164,7 +195,7 @@ export default function GmailPage() {
               Gmail Integration
             </h1>
             <p className="text-gray-400 font-mono text-sm">
-              {isConnected
+              {connectionInfo.isConnected
                 ? "Connected to the email abyss. Monitoring for job-related communications."
                 : "Connect your Gmail to automatically track job application emails."}
             </p>
@@ -183,24 +214,26 @@ export default function GmailPage() {
             <CardContent className="space-y-6">
               <div className="flex items-center justify-between p-4 rounded border border-gray-700">
                 <div className="flex items-center gap-3">
-                  {isConnected ? (
+                  {connectionInfo.isConnected ? (
                     <CheckCircle className="h-6 w-6 text-[#00F57A]" />
                   ) : (
                     <AlertCircle className="h-6 w-6 text-gray-500" />
                   )}
                   <div>
                     <p className="text-white font-medium">
-                      {isConnected ? "Gmail Connected" : "Gmail Not Connected"}
+                      {connectionInfo.isConnected
+                        ? "Gmail Connected"
+                        : "Gmail Not Connected"}
                     </p>
                     <p className="text-gray-400 text-sm font-mono">
-                      {isConnected
+                      {connectionInfo.isConnected
                         ? "Automatic email monitoring is active"
                         : "Manual application tracking only"}
                     </p>
                   </div>
                 </div>
 
-                {isConnected ? (
+                {connectionInfo.isConnected ? (
                   <div className="flex gap-2">
                     <Button
                       onClick={handleSync}
@@ -218,11 +251,12 @@ export default function GmailPage() {
                     </Button>
                     <Button
                       onClick={() => setShowDisconnectModal(true)}
+                      disabled={isDisconnecting}
                       variant="outline"
                       size="sm"
                       className="border-red-700 text-red-400 hover:bg-red-900/20"
                     >
-                      Disconnect
+                      {isDisconnecting ? "Disconnecting..." : "Disconnect"}
                     </Button>
                   </div>
                 ) : (
@@ -237,13 +271,14 @@ export default function GmailPage() {
                 )}
               </div>
 
-              {lastSync && (
+              {connectionInfo.lastAccessed && (
                 <div className="text-sm text-gray-400 font-mono">
-                  Last sync: {new Date(lastSync).toLocaleString()}
+                  Last sync:{" "}
+                  {new Date(connectionInfo.lastAccessed).toLocaleString()}
                 </div>
               )}
 
-              {!isConnected && (
+              {!connectionInfo.isConnected && (
                 <div className="p-4 rounded border border-yellow-700 bg-yellow-900/10">
                   <div className="flex items-start gap-3">
                     <AlertCircle className="h-5 w-5 text-yellow-500 mt-0.5" />
@@ -275,7 +310,7 @@ export default function GmailPage() {
             <CardContent className="space-y-4">
               <div className="text-center p-4 rounded border border-gray-700">
                 <p className="text-2xl font-mono font-bold text-[#00F57A]">
-                  {isConnected ? "47" : "0"}
+                  {connectionInfo.isConnected ? "47" : "0"}
                 </p>
                 <p className="text-gray-400 text-sm font-mono">
                   Emails Processed
@@ -284,14 +319,14 @@ export default function GmailPage() {
 
               <div className="text-center p-4 rounded border border-gray-700">
                 <p className="text-2xl font-mono font-bold text-yellow-500">
-                  {isConnected ? "12" : "0"}
+                  {connectionInfo.isConnected ? "12" : "0"}
                 </p>
                 <p className="text-gray-400 text-sm font-mono">Auto-Updates</p>
               </div>
 
               <div className="text-center p-4 rounded border border-gray-700">
                 <p className="text-2xl font-mono font-bold text-cyan-500">
-                  {isConnected ? "3" : "0"}
+                  {connectionInfo.isConnected ? "3" : "0"}
                 </p>
                 <p className="text-gray-400 text-sm font-mono">
                   Interviews Detected
@@ -320,7 +355,7 @@ export default function GmailPage() {
                 onChange={(e) => setKeywords(e.target.value)}
                 placeholder="Enter comma-separated keywords..."
                 className="bg-black border-gray-700 text-white placeholder:text-gray-500"
-                disabled={!isConnected}
+                disabled={!connectionInfo.isConnected}
               />
               <p className="text-gray-500 text-sm font-mono">
                 The void will scan emails for these keywords to identify
@@ -367,7 +402,8 @@ export default function GmailPage() {
                 </h4>
                 <div className="space-y-2 text-sm text-gray-400 font-mono">
                   <p>• Read-only access to Gmail</p>
-                  <p>• No emails stored permanently</p>
+                  <p>• Tokens stored securely server-side</p>
+                  <p>• No tokens in browser or URLs</p>
                   <p>• Only job-related content processed</p>
                   <p>• OAuth 2.0 secure authentication</p>
                   <p>• Revoke access anytime</p>
@@ -377,14 +413,14 @@ export default function GmailPage() {
 
             <div className="flex gap-4">
               <Button
-                disabled={!isConnected}
+                disabled={!connectionInfo.isConnected}
                 className="bg-[#00F57A] text-black hover:bg-[#00F57A]/90 disabled:opacity-50"
               >
                 Save Configuration
               </Button>
               <Button
                 variant="outline"
-                disabled={!isConnected}
+                disabled={!connectionInfo.isConnected}
                 className="border-gray-700 text-gray-300 hover:bg-gray-800 disabled:opacity-50"
               >
                 Test Detection
@@ -394,7 +430,7 @@ export default function GmailPage() {
         </Card>
 
         {/* Recent Activity */}
-        {isConnected && (
+        {connectionInfo.isConnected && (
           <Card className="void-card">
             <CardHeader>
               <CardTitle className="font-mono text-white">
