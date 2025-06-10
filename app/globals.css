@@ -46,7 +46,9 @@
   }
 
   .font-mono {
-    font-family: "SF Mono", "Monaco", "Inconsolata", "Roboto Mono", "Source Code Pro", "Menlo", "Consolas", monospace;
+    font-family:
+      "SF Mono", "Monaco", "Inconsolata", "Roboto Mono", "Source Code Pro",
+      "Menlo", "Consolas", monospace;
   }
 
   .terminal-green {

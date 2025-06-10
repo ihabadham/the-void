@@ -1,25 +1,25 @@
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
 
-import { useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { SidebarTrigger } from "@/components/ui/sidebar"
-import { ArrowLeft, Save, Upload, X } from "lucide-react"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { useToast } from "@/hooks/use-toast"
+import { useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { SidebarTrigger } from "@/components/ui/sidebar";
+import { ArrowLeft, Save, Upload, X } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useToast } from "@/hooks/use-toast";
 
 interface AttachedFile {
-  id: string
-  name: string
-  size: number
-  type: string
-  url: string
+  id: string;
+  name: string;
+  size: number;
+  type: string;
+  url: string;
 }
 
 export default function NewApplicationPage() {
@@ -32,15 +32,15 @@ export default function NewApplicationPage() {
     nextEvent: "",
     notes: "",
     jobUrl: "",
-  })
-  const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const router = useRouter()
-  const { toast } = useToast()
+  });
+  const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const router = useRouter();
+  const { toast } = useToast();
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files
-    if (!files) return
+    const files = event.target.files;
+    if (!files) return;
 
     Array.from(files).forEach((file) => {
       const newFile: AttachedFile = {
@@ -49,110 +49,129 @@ export default function NewApplicationPage() {
         size: file.size,
         type: file.type,
         url: URL.createObjectURL(file),
-      }
-      setAttachedFiles((prev) => [...prev, newFile])
-    })
+      };
+      setAttachedFiles((prev) => [...prev, newFile]);
+    });
 
     // Reset file input
-    event.target.value = ""
-  }
+    event.target.value = "";
+  };
 
   const removeFile = (fileId: string) => {
-    setAttachedFiles((prev) => prev.filter((file) => file.id !== fileId))
-  }
+    setAttachedFiles((prev) => prev.filter((file) => file.id !== fileId));
+  };
 
   const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return "0 Bytes"
-    const k = 1024
-    const sizes = ["Bytes", "KB", "MB", "GB"]
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return Number.parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i]
-  }
+    if (bytes === 0) return "0 Bytes";
+    const k = 1024;
+    const sizes = ["Bytes", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return (
+      Number.parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i]
+    );
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsSubmitting(true)
+    e.preventDefault();
+    setIsSubmitting(true);
 
     try {
       // Generate unique ID
-      const applicationId = Date.now().toString()
+      const applicationId = Date.now().toString();
 
       // Create new application
       const newApplication = {
         id: applicationId,
         ...formData,
-        appliedDate: formData.appliedDate || new Date().toISOString().split("T")[0],
+        appliedDate:
+          formData.appliedDate || new Date().toISOString().split("T")[0],
         attachments: attachedFiles.map((file) => file.id),
-      }
+      };
 
       // Save attached files to documents with application reference
-      const existingDocuments = localStorage.getItem("void-documents")
-      const documents = existingDocuments ? JSON.parse(existingDocuments) : []
+      const existingDocuments = localStorage.getItem("void-documents");
+      const documents = existingDocuments ? JSON.parse(existingDocuments) : [];
 
       const newDocuments = attachedFiles.map((file) => ({
         id: file.id,
         name: file.name,
-        type: file.name.toLowerCase().includes("cv") || file.name.toLowerCase().includes("resume") ? "cv" : "other",
+        type:
+          file.name.toLowerCase().includes("cv") ||
+          file.name.toLowerCase().includes("resume")
+            ? "cv"
+            : "other",
         uploadDate: new Date().toISOString(),
         size: file.size,
         url: file.url,
         applicationId: applicationId, // Link document to application
         applicationCompany: formData.company,
-      }))
+      }));
 
-      documents.push(...newDocuments)
-      localStorage.setItem("void-documents", JSON.stringify(documents))
+      documents.push(...newDocuments);
+      localStorage.setItem("void-documents", JSON.stringify(documents));
 
       // Load existing applications
-      const existing = localStorage.getItem("void-applications")
-      const applications = existing ? JSON.parse(existing) : []
+      const existing = localStorage.getItem("void-applications");
+      const applications = existing ? JSON.parse(existing) : [];
 
       // Add new application
-      applications.push(newApplication)
+      applications.push(newApplication);
 
       // Save to localStorage
-      localStorage.setItem("void-applications", JSON.stringify(applications))
+      localStorage.setItem("void-applications", JSON.stringify(applications));
 
       toast({
         title: "Application logged successfully",
         description: `Record committed to the void with ${attachedFiles.length} attachment(s).`,
-      })
+      });
 
-      router.push("/applications")
+      router.push("/applications");
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to log application. The void rejected your offering.",
+        description:
+          "Failed to log application. The void rejected your offering.",
         variant: "destructive",
-      })
+      });
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  };
 
   const handleInputChange = (field: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }))
-  }
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
 
   return (
     <div className="flex-1 space-y-6 p-6">
       <div className="flex items-center gap-4">
         <SidebarTrigger />
-        <Button variant="outline" size="sm" asChild className="border-gray-700 text-gray-300 hover:bg-gray-800">
+        <Button
+          variant="outline"
+          size="sm"
+          asChild
+          className="border-gray-700 text-gray-300 hover:bg-gray-800"
+        >
           <Link href="/applications">
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back
           </Link>
         </Button>
         <div>
-          <h1 className="font-mono text-3xl font-medium text-white">Log Application</h1>
-          <p className="text-gray-400 font-mono text-sm">Cast another application into the digital abyss.</p>
+          <h1 className="font-mono text-3xl font-medium text-white">
+            Log Application
+          </h1>
+          <p className="text-gray-400 font-mono text-sm">
+            Cast another application into the digital abyss.
+          </p>
         </div>
       </div>
 
       <Card className="void-card max-w-2xl">
         <CardHeader>
-          <CardTitle className="font-mono text-white">Application Details</CardTitle>
+          <CardTitle className="font-mono text-white">
+            Application Details
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -178,7 +197,9 @@ export default function NewApplicationPage() {
                 <Input
                   id="position"
                   value={formData.position}
-                  onChange={(e) => handleInputChange("position", e.target.value)}
+                  onChange={(e) =>
+                    handleInputChange("position", e.target.value)
+                  }
                   placeholder="Enter job title"
                   required
                   className="bg-black border-gray-700 text-white placeholder:text-gray-500"
@@ -207,14 +228,19 @@ export default function NewApplicationPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="appliedDate" className="text-gray-300 font-mono">
+                <Label
+                  htmlFor="appliedDate"
+                  className="text-gray-300 font-mono"
+                >
                   Applied Date
                 </Label>
                 <Input
                   id="appliedDate"
                   type="date"
                   value={formData.appliedDate}
-                  onChange={(e) => handleInputChange("appliedDate", e.target.value)}
+                  onChange={(e) =>
+                    handleInputChange("appliedDate", e.target.value)
+                  }
                   className="bg-black border-gray-700 text-white"
                 />
               </div>
@@ -229,7 +255,9 @@ export default function NewApplicationPage() {
                   id="nextDate"
                   type="date"
                   value={formData.nextDate}
-                  onChange={(e) => handleInputChange("nextDate", e.target.value)}
+                  onChange={(e) =>
+                    handleInputChange("nextDate", e.target.value)
+                  }
                   className="bg-black border-gray-700 text-white"
                 />
               </div>
@@ -241,7 +269,9 @@ export default function NewApplicationPage() {
                 <Input
                   id="nextEvent"
                   value={formData.nextEvent}
-                  onChange={(e) => handleInputChange("nextEvent", e.target.value)}
+                  onChange={(e) =>
+                    handleInputChange("nextEvent", e.target.value)
+                  }
                   placeholder="e.g., Interview, Assessment"
                   className="bg-black border-gray-700 text-white placeholder:text-gray-500"
                 />
@@ -278,7 +308,9 @@ export default function NewApplicationPage() {
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => document.getElementById("file-upload")?.click()}
+                    onClick={() =>
+                      document.getElementById("file-upload")?.click()
+                    }
                     className="border-gray-700 text-gray-300 hover:bg-gray-800"
                   >
                     <Upload className="h-4 w-4 mr-2" />
@@ -294,8 +326,12 @@ export default function NewApplicationPage() {
                         className="flex items-center justify-between p-2 rounded border border-gray-700"
                       >
                         <div>
-                          <p className="text-white text-sm font-medium">{file.name}</p>
-                          <p className="text-gray-400 text-xs font-mono">{formatFileSize(file.size)}</p>
+                          <p className="text-white text-sm font-medium">
+                            {file.name}
+                          </p>
+                          <p className="text-gray-400 text-xs font-mono">
+                            {formatFileSize(file.size)}
+                          </p>
                         </div>
                         <Button
                           type="button"
@@ -330,7 +366,9 @@ export default function NewApplicationPage() {
             <div className="flex gap-4">
               <Button
                 type="submit"
-                disabled={isSubmitting || !formData.company || !formData.position}
+                disabled={
+                  isSubmitting || !formData.company || !formData.position
+                }
                 className="bg-[#00F57A] text-black hover:bg-[#00F57A]/90 disabled:opacity-50"
               >
                 <Save className="h-4 w-4 mr-2" />
@@ -350,5 +388,5 @@ export default function NewApplicationPage() {
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

@@ -1,4 +1,4 @@
-"use client"
+"use client";
 
 import {
   AlertDialog,
@@ -9,17 +9,17 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+} from "@/components/ui/alert-dialog";
 
 interface ConfirmationModalProps {
-  isOpen: boolean
-  onClose: () => void
-  onConfirm: () => void
-  title: string
-  description: string
-  confirmText?: string
-  cancelText?: string
-  destructive?: boolean
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  title: string;
+  description: string;
+  confirmText?: string;
+  cancelText?: string;
+  destructive?: boolean;
 }
 
 export function ConfirmationModal({
@@ -36,7 +36,9 @@ export function ConfirmationModal({
     <AlertDialog open={isOpen} onOpenChange={onClose}>
       <AlertDialogContent className="void-card border-gray-700">
         <AlertDialogHeader>
-          <AlertDialogTitle className="font-mono text-white">{title}</AlertDialogTitle>
+          <AlertDialogTitle className="font-mono text-white">
+            {title}
+          </AlertDialogTitle>
           <AlertDialogDescription className="text-gray-400 font-mono text-sm whitespace-pre-line">
             {description}
           </AlertDialogDescription>
@@ -48,7 +50,9 @@ export function ConfirmationModal({
           <AlertDialogAction
             onClick={onConfirm}
             className={
-              destructive ? "bg-red-600 text-white hover:bg-red-700" : "bg-[#00F57A] text-black hover:bg-[#00F57A]/90"
+              destructive
+                ? "bg-red-600 text-white hover:bg-red-700"
+                : "bg-[#00F57A] text-black hover:bg-[#00F57A]/90"
             }
           >
             {confirmText}
@@ -56,5 +60,5 @@ export function ConfirmationModal({
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
-  )
+  );
 }
