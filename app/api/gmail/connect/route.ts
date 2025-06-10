@@ -11,16 +11,6 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Debug environment variables
-    console.log("=== Gmail Connect Debug ===");
-    console.log("NEXTAUTH_URL:", process.env.NEXTAUTH_URL);
-    console.log("GOOGLE_CLIENT_ID exists:", !!process.env.GOOGLE_CLIENT_ID);
-    console.log(
-      "GOOGLE_CLIENT_SECRET exists:",
-      !!process.env.GOOGLE_CLIENT_SECRET
-    );
-    console.log("===========================");
-
     const authUrl = createGmailAuthUrl();
 
     return NextResponse.json({ authUrl });
