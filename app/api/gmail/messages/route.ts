@@ -7,22 +7,24 @@ export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
 
-    if (!session || !session.accessToken) {
+    if (!session?.accessToken) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const gmail = await createGmailClient(session.accessToken);
+    // Get limit from query params with default
+    const url = new URL(req.url);
+    const limit = Math.min(parseInt(url.searchParams.get('limit') || '10'), 100);
 
-    // Search for job-related emails
+    const gmail = await createGmailClient(session.accessToken);
     const messages = await gmail.searchJobApplicationEmails();
 
     return NextResponse.json({
       success: true,
       count: messages.length,
-      messages: messages.slice(0, 10), // Limit to first 10 for demo
+      messages: messages.slice(0, limit),
     });
   } catch (error) {
-    console.error("Gmail API error:", error);
+    console.error("Gmail API error:", error instanceof Error ? error.message : "Unknown error");
     return NextResponse.json(
       {
         error: "Failed to fetch emails",
