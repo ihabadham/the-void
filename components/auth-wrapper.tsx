@@ -1,50 +1,51 @@
-"use client"
+"use client";
 
-import type React from "react"
-
-import { useEffect, useState } from "react"
-import { usePathname, useRouter } from "next/navigation"
+import type React from "react";
+import { useSession } from "next-auth/react";
+import { useEffect } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { Terminal } from "lucide-react";
 
 interface AuthWrapperProps {
-  children: React.ReactNode
+  children: React.ReactNode;
 }
 
 export function AuthWrapper({ children }: AuthWrapperProps) {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
-  const pathname = usePathname()
-  const router = useRouter()
+  const { data: session, status } = useSession();
+  const pathname = usePathname();
+  const router = useRouter();
 
   useEffect(() => {
-    // Check if user has connected Gmail
-    const gmailConnected = localStorage.getItem("void-gmail-connected")
-    const isAuthPage = pathname === "/auth"
+    const isAuthPage = pathname === "/auth";
 
-    if (gmailConnected === "true") {
-      setIsAuthenticated(true)
-      // If on auth page and already authenticated, redirect to dashboard
+    if (status === "loading") return; // Still checking session
+
+    if (session) {
+      // User is authenticated
       if (isAuthPage) {
-        router.push("/")
+        router.push("/"); // Redirect to dashboard if on auth page
       }
     } else {
-      setIsAuthenticated(false)
-      // If not authenticated and not on auth page, redirect to auth
+      // User is not authenticated
       if (!isAuthPage) {
-        router.push("/auth")
+        router.push("/auth"); // Redirect to auth page
       }
     }
-  }, [pathname, router])
+  }, [session, status, pathname, router]);
 
   // Show loading state while checking auth
-  if (isAuthenticated === null) {
+  if (status === "loading") {
     return (
       <div className="flex items-center justify-center min-h-screen bg-black">
         <div className="text-center">
-          <div className="w-8 h-8 border-2 border-[#00F57A] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-400 font-mono text-sm">Initializing the void...</p>
+          <Terminal className="h-12 w-12 text-[#00F57A] mx-auto mb-4 animate-pulse" />
+          <p className="text-gray-400 font-mono text-sm">
+            Initializing the void...
+          </p>
         </div>
       </div>
-    )
+    );
   }
 
-  return <>{children}</>
+  return <>{children}</>;
 }
