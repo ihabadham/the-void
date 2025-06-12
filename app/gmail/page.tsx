@@ -103,6 +103,9 @@ export default function GmailPage() {
 
     try {
       const response = await fetch("/api/gmail/connect");
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
       const data = await response.json();
 
       if (data.authUrl) {
