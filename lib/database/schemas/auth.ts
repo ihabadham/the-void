@@ -8,7 +8,10 @@ export const users = pgTable("users", {
   name: text("name"),
   image: text("image"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at")
+    .defaultNow()
+    .$onUpdateNow()      // keeps the column in sync on UPDATE
+    .notNull(),
 });
 
 // Gmail tokens table - auth-related sensitive data
