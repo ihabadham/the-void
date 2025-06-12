@@ -1,17 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/auth-helpers";
 import { getGmailConnectionInfo } from "@/lib/gmail-token-store";
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await getCurrentUser();
 
-    if (!session?.user?.email) {
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const connectionInfo = await getGmailConnectionInfo(session.user.email);
+    const connectionInfo = await getGmailConnectionInfo(user.email);
 
     if (!connectionInfo) {
       return NextResponse.json(
@@ -20,7 +19,14 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    return NextResponse.json(connectionInfo);
+    return NextResponse.json({
+      ...connectionInfo,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+      },
+    });
   } catch (error) {
     console.error("Gmail status error:", error);
     return NextResponse.json(

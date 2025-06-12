@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/auth-helpers";
 import { exchangeCodeForTokens } from "@/lib/gmail-server";
 import { storeGmailTokensSecurely } from "@/lib/gmail-token-store";
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const user = await getCurrentUser();
 
-    if (!session?.user?.email) {
+    if (!user) {
       return NextResponse.redirect(`${process.env.NEXTAUTH_URL}/auth`);
     }
 
@@ -31,8 +30,12 @@ export async function GET(req: NextRequest) {
     // Exchange code for tokens server-side
     const tokens = await exchangeCodeForTokens(code);
 
-    // Store tokens securely server-side (not in localStorage or URL)
-    await storeGmailTokensSecurely(session.user.email, tokens);
+    // Store tokens securely server-side using database
+    await storeGmailTokensSecurely(user.email, tokens);
+
+    console.log(
+      `Gmail successfully connected for user: ${user.email} (ID: ${user.id})`
+    );
 
     // Redirect with only a success flag - no sensitive data in URL
     return NextResponse.redirect(
