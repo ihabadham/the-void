@@ -19,10 +19,7 @@ export function getDb() {
     // Create postgres client
     const client = postgres(databaseUrl, {
       prepare: false, // Required for Supabase
-      ssl:
-        process.env.NODE_ENV === "production"
-          ? { rejectUnauthorized: false }
-          : false,
+      ssl: process.env.NODE_ENV === "production" ? "require" : false,
     });
 
     // Create drizzle instance
