@@ -31,9 +31,8 @@ export async function getCurrentUser(): Promise<User | null> {
 
     return user;
   } catch (error) {
-  } catch (error) {
     console.error("Failed to get current user:", error);
-    throw error;            // let the upstream handler deal with it
+    throw error; // let the upstream handler deal with it
   }
 }
 
