@@ -1,6 +1,6 @@
 "use client";
 
-import type React from "react";
+import React from "react";
 
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -83,8 +83,9 @@ const documentTypes = {
 export default function ApplicationDetailPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
+  const { id } = React.use(params);
   const [application, setApplication] = useState<Application | null>(null);
   const [documents, setDocuments] = useState<Document[]>([]);
   const [isEditing, setIsEditing] = useState(false);
@@ -109,7 +110,7 @@ export default function ApplicationDetailPage({
     const stored = localStorage.getItem("void-applications");
     if (stored) {
       const applications = JSON.parse(stored);
-      const app = applications.find((a: Application) => a.id === params.id);
+      const app = applications.find((a: Application) => a.id === id);
       if (app) {
         setApplication(app);
         setFormData(app);
@@ -123,11 +124,11 @@ export default function ApplicationDetailPage({
     if (storedDocs) {
       const allDocs = JSON.parse(storedDocs);
       const appDocs = allDocs.filter(
-        (doc: Document) => doc.applicationId === params.id
+        (doc: Document) => doc.applicationId === id
       );
       setDocuments(appDocs);
     }
-  }, [params.id, router]);
+  }, [id, router]);
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -171,9 +172,7 @@ export default function ApplicationDetailPage({
       const stored = localStorage.getItem("void-applications");
       if (stored) {
         const applications = JSON.parse(stored);
-        const index = applications.findIndex(
-          (a: Application) => a.id === params.id
-        );
+        const index = applications.findIndex((a: Application) => a.id === id);
         if (index !== -1) {
           applications[index] = { ...application, ...formData };
           localStorage.setItem(
@@ -189,18 +188,17 @@ export default function ApplicationDetailPage({
               ? JSON.parse(existingDocuments)
               : [];
 
-            const newDocuments = newFiles.map((file) => ({
+            const newDocuments: Document[] = newFiles.map((file) => ({
               id: file.id,
               name: file.name,
-              type:
-                file.name.toLowerCase().includes("cv") ||
-                file.name.toLowerCase().includes("resume")
-                  ? "cv"
-                  : "other",
+              type: (file.name.toLowerCase().includes("cv") ||
+              file.name.toLowerCase().includes("resume")
+                ? "cv"
+                : "other") as "cv" | "cover-letter" | "portfolio" | "other",
               uploadDate: new Date().toISOString(),
               size: file.size,
               url: file.url,
-              applicationId: params.id,
+              applicationId: id,
               applicationCompany: applications[index].company,
             }));
 
@@ -235,9 +233,7 @@ export default function ApplicationDetailPage({
       const stored = localStorage.getItem("void-applications");
       if (stored) {
         const applications = JSON.parse(stored);
-        const filtered = applications.filter(
-          (a: Application) => a.id !== params.id
-        );
+        const filtered = applications.filter((a: Application) => a.id !== id);
         localStorage.setItem("void-applications", JSON.stringify(filtered));
 
         // Remove associated documents
@@ -245,7 +241,7 @@ export default function ApplicationDetailPage({
         if (storedDocuments) {
           const documents = JSON.parse(storedDocuments);
           const filteredDocuments = documents.filter(
-            (doc: any) => doc.applicationId !== params.id
+            (doc: any) => doc.applicationId !== id
           );
           localStorage.setItem(
             "void-documents",
