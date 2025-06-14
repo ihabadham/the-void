@@ -1,4 +1,5 @@
-import { Suspense } from "react";
+"use client";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,11 +17,8 @@ import {
 import Link from "next/link";
 import { DebugSession } from "@/components/debug-session";
 import { DashboardSkeleton } from "@/components/dashboard-skeleton";
-import {
-  getApplicationsForCurrentUser,
-  getDashboardDataForCurrentUser,
-} from "@/lib/server/data-fetching";
 import type { Application } from "@/lib/database/schemas";
+import useSWR from "swr";
 
 const statusColors = {
   applied: "bg-blue-500",
@@ -40,14 +38,33 @@ const statusIcons = {
   withdrawn: XCircle,
 };
 
-async function DashboardContent() {
-  // Server-side data fetching (replacing localStorage)
-  const [applications, dashboardData] = await Promise.all([
-    getApplicationsForCurrentUser(),
-    getDashboardDataForCurrentUser(),
-  ]);
+interface DashboardData {
+  applications: Application[];
+  stats: {
+    total: number;
+    pending: number;
+    interviews: number;
+    rejections: number;
+  };
+}
 
-  const stats = dashboardData.stats;
+// SWR fetcher function
+const fetcher = (url: string) => fetch(url).then((res) => res.json());
+
+export default function Dashboard() {
+  // Use SWR for data fetching with caching
+  const { data, error, isLoading } = useSWR<DashboardData>(
+    "/api/dashboard",
+    fetcher
+  );
+
+  const applications = data?.applications || [];
+  const stats = data?.stats || {
+    total: 0,
+    pending: 0,
+    interviews: 0,
+    rejections: 0,
+  };
 
   const upcomingEvents = applications
     .filter(
@@ -65,6 +82,36 @@ async function DashboardContent() {
         new Date(b.appliedDate).getTime() - new Date(a.appliedDate).getTime()
     )
     .slice(0, 5);
+
+  if (error) {
+    return (
+      <div className="flex-1 space-y-6 p-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <SidebarTrigger />
+            <div>
+              <h1 className="font-mono text-3xl font-medium text-white">
+                Dashboard
+              </h1>
+              <p className="text-gray-400 font-mono text-sm">
+                Error loading data from the void...
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="text-center py-8">
+          <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+          <p className="text-gray-400 font-mono text-sm">
+            Failed to load dashboard data
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return <DashboardSkeleton />;
+  }
 
   return (
     <div className="flex-1 space-y-6 p-6">
@@ -291,12 +338,5 @@ async function DashboardContent() {
       {/* Debug Session Component - Only visible in development */}
       <DebugSession />
     </div>
-  );
-}
-export default function Dashboard() {
-  return (
-    <Suspense fallback={<DashboardSkeleton />}>
-      <DashboardContent />
-    </Suspense>
   );
 }
