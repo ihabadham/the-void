@@ -20,7 +20,9 @@
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "db:drop": "drizzle-kit drop",
-    "db:test": "tsx lib/database/test-connection.ts"
+    "db:test": "tsx lib/database/test-connection.ts",
+    "db:seed": "tsx scripts/seed-dev-data.ts",
+    "db:seed:clear": "tsx scripts/seed-dev-data.ts clear"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

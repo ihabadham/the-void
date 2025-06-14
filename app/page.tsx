@@ -1,6 +1,4 @@
-"use client";
-
-import { useState, useEffect } from "react";
+import { Suspense } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,22 +15,12 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { DebugSession } from "@/components/debug-session";
-
-interface Application {
-  id: string;
-  company: string;
-  position: string;
-  status:
-    | "applied"
-    | "assessment"
-    | "interview"
-    | "offer"
-    | "rejected"
-    | "withdrawn";
-  appliedDate: string;
-  nextDate?: string;
-  nextEvent?: string;
-}
+import { DashboardSkeleton } from "@/components/dashboard-skeleton";
+import {
+  getApplicationsForCurrentUser,
+  getDashboardDataForCurrentUser,
+} from "@/lib/server/data-fetching";
+import type { Application } from "@/lib/database/schemas";
 
 const statusColors = {
   applied: "bg-blue-500",
@@ -52,125 +40,28 @@ const statusIcons = {
   withdrawn: XCircle,
 };
 
-export default function Dashboard() {
-  const [applications, setApplications] = useState<Application[]>([]);
-  const [stats, setStats] = useState({
-    total: 0,
-    pending: 0,
-    interviews: 0,
-    rejections: 0,
-  });
+async function DashboardContent() {
+  // Server-side data fetching (replacing localStorage)
+  const [applications, dashboardData] = await Promise.all([
+    getApplicationsForCurrentUser(),
+    getDashboardDataForCurrentUser(),
+  ]);
 
-  useEffect(() => {
-    // Load applications from localStorage or use dummy data
-    const stored = localStorage.getItem("void-applications");
-    let apps: Application[] = [];
-
-    if (stored) {
-      apps = JSON.parse(stored);
-    }
-
-    // If no stored data, use comprehensive dummy data to showcase features
-    if (apps.length === 0) {
-      apps = [
-        {
-          id: "1",
-          company: "TechCorp",
-          position: "Senior Frontend Developer",
-          status: "interview",
-          appliedDate: "2024-01-15",
-          nextDate: "2024-01-25",
-          nextEvent: "Technical Interview",
-        },
-        {
-          id: "2",
-          company: "StartupXYZ",
-          position: "Full Stack Engineer",
-          status: "rejected",
-          appliedDate: "2024-01-10",
-        },
-        {
-          id: "3",
-          company: "BigTech Inc",
-          position: "Software Engineer",
-          status: "assessment",
-          appliedDate: "2024-01-20",
-          nextDate: "2024-01-28",
-          nextEvent: "Coding Assessment",
-        },
-        {
-          id: "4",
-          company: "InnovateLabs",
-          position: "React Developer",
-          status: "applied",
-          appliedDate: "2024-01-22",
-        },
-        {
-          id: "5",
-          company: "DataDriven Co",
-          position: "Frontend Architect",
-          status: "offer",
-          appliedDate: "2024-01-05",
-          nextDate: "2024-01-30",
-          nextEvent: "Offer Response Deadline",
-        },
-        {
-          id: "6",
-          company: "CloudFirst",
-          position: "Senior Developer",
-          status: "interview",
-          appliedDate: "2024-01-18",
-          nextDate: "2024-01-26",
-          nextEvent: "Final Round Interview",
-        },
-        {
-          id: "7",
-          company: "FinTech Solutions",
-          position: "JavaScript Developer",
-          status: "withdrawn",
-          appliedDate: "2024-01-12",
-        },
-        {
-          id: "8",
-          company: "GreenTech Innovations",
-          position: "Frontend Lead",
-          status: "applied",
-          appliedDate: "2024-01-23",
-        },
-      ];
-
-      // Store dummy data for persistence
-      localStorage.setItem("void-applications", JSON.stringify(apps));
-    }
-
-    setApplications(apps);
-
-    // Calculate stats
-    const total = apps.length;
-    const pending = apps.filter((app: Application) =>
-      ["applied", "assessment", "interview"].includes(app.status)
-    ).length;
-    const interviews = apps.filter(
-      (app: Application) => app.status === "interview"
-    ).length;
-    const rejections = apps.filter(
-      (app: Application) => app.status === "rejected"
-    ).length;
-
-    setStats({ total, pending, interviews, rejections });
-  }, []);
+  const stats = dashboardData.stats;
 
   const upcomingEvents = applications
-    .filter((app) => app.nextDate && new Date(app.nextDate) > new Date())
+    .filter(
+      (app: Application) => app.nextDate && new Date(app.nextDate) > new Date()
+    )
     .sort(
-      (a, b) =>
+      (a: Application, b: Application) =>
         new Date(a.nextDate!).getTime() - new Date(b.nextDate!).getTime()
     )
     .slice(0, 5);
 
   const recentApplications = applications
     .sort(
-      (a, b) =>
+      (a: Application, b: Application) =>
         new Date(b.appliedDate).getTime() - new Date(a.appliedDate).getTime()
     )
     .slice(0, 5);
@@ -286,7 +177,7 @@ export default function Dashboard() {
           <CardContent>
             {upcomingEvents.length > 0 ? (
               <div className="space-y-3">
-                {upcomingEvents.map((app) => {
+                {upcomingEvents.map((app: Application) => {
                   const StatusIcon = statusIcons[app.status];
                   return (
                     <div
@@ -306,7 +197,8 @@ export default function Dashboard() {
                       </div>
                       <div className="text-right">
                         <p className="text-white text-sm font-mono">
-                          {app.nextDate}
+                          {app.nextDate &&
+                            new Date(app.nextDate).toLocaleDateString()}
                         </p>
                         <Badge
                           variant="secondary"
@@ -346,7 +238,7 @@ export default function Dashboard() {
           <CardContent>
             {recentApplications.length > 0 ? (
               <div className="space-y-3">
-                {recentApplications.map((app) => {
+                {recentApplications.map((app: Application) => {
                   const StatusIcon = statusIcons[app.status];
                   return (
                     <div
@@ -366,7 +258,7 @@ export default function Dashboard() {
                       </div>
                       <div className="text-right">
                         <p className="text-white text-sm font-mono">
-                          {app.appliedDate}
+                          {new Date(app.appliedDate).toLocaleDateString()}
                         </p>
                         <Badge
                           variant="secondary"
@@ -399,5 +291,12 @@ export default function Dashboard() {
       {/* Debug Session Component - Only visible in development */}
       <DebugSession />
     </div>
+  );
+}
+export default function Dashboard() {
+  return (
+    <Suspense fallback={<DashboardSkeleton />}>
+      <DashboardContent />
+    </Suspense>
   );
 }
