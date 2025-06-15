@@ -36,7 +36,7 @@ interface SettingsData {
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 export function SettingsContent() {
-  const [settings, setSettings] = useState<Settings>({
+  const [formData, setFormData] = useState<Settings>({
     notifications: true,
     autoSync: false,
     darkMode: true,
@@ -44,7 +44,7 @@ export function SettingsContent() {
     exportFormat: "json",
     dataRetention: 365,
   });
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
   const [showClearDataModal, setShowClearDataModal] = useState(false);
 
@@ -52,41 +52,33 @@ export function SettingsContent() {
   const {
     data,
     error,
-    isLoading: swrLoading,
+    isLoading,
+    mutate: mutateSettings,
   } = useSWR<SettingsData>("/api/settings", fetcher);
 
+  // Update form data when SWR data changes
   useEffect(() => {
-    // Prioritize database data over localStorage
     if (data?.settings) {
-      setSettings(data.settings);
-    } else {
-      // Fallback to localStorage only if no database data
-      const stored = localStorage.getItem("void-settings");
-      if (stored) {
-        setSettings(JSON.parse(stored));
-      }
+      setFormData(data.settings);
     }
   }, [data]);
 
   const handleSaveSettings = async () => {
-    setIsLoading(true);
+    setIsSubmitting(true);
     try {
       // Save to database via API
       const response = await fetch("/api/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(settings),
+        body: JSON.stringify(formData),
       });
 
       if (!response.ok) {
         throw new Error("Failed to save settings");
       }
 
-      // Also save to localStorage as backup
-      localStorage.setItem("void-settings", JSON.stringify(settings));
-
-      // Trigger SWR revalidation to update cache
-      mutate("/api/settings");
+      // Refresh data from server
+      await mutateSettings();
 
       toast({
         title: "Settings saved",
@@ -100,103 +92,112 @@ export function SettingsContent() {
         variant: "destructive",
       });
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
-  const handleExportData = () => {
-    const applications = localStorage.getItem("void-applications");
-    const documents = localStorage.getItem("void-documents");
-
-    const data = {
-      applications: applications ? JSON.parse(applications) : [],
-      documents: documents ? JSON.parse(documents) : [],
-      exportDate: new Date().toISOString(),
-      version: "1.0",
-    };
-
-    if (settings.exportFormat === "json") {
-      const blob = new Blob([JSON.stringify(data, null, 2)], {
-        type: "application/json",
+  const handleExportData = async () => {
+    try {
+      // Export data from database via API
+      const response = await fetch("/api/export", {
+        method: "GET",
       });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `void-export-${new Date().toISOString().split("T")[0]}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } else {
-      // CSV export for applications
-      const apps = data.applications;
-      if (apps.length === 0) {
-        toast({
-          title: "No data to export",
-          description: "The void is empty.",
-          variant: "destructive",
-        });
-        return;
+
+      if (!response.ok) {
+        throw new Error("Failed to export data");
       }
 
-      const headers = [
-        "Company",
-        "Position",
-        "Status",
-        "Applied Date",
-        "Next Date",
-        "CV Version",
-        "Notes",
-      ];
-      const csvContent = [
-        headers.join(","),
-        ...apps.map((app: any) =>
-          [
-            app.company,
-            app.position,
-            app.status,
-            app.appliedDate,
-            app.nextDate || "",
-            app.cvVersion || "",
-            (app.notes || "").replace(/,/g, ";"),
-          ].join(",")
-        ),
-      ].join("\n");
+      const exportData = await response.json();
 
-      const blob = new Blob([csvContent], { type: "text/csv" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `void-applications-${new Date().toISOString().split("T")[0]}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
+      if (formData.exportFormat === "json") {
+        const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+          type: "application/json",
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `void-export-${new Date().toISOString().split("T")[0]}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        // CSV export for applications
+        const apps = exportData.applications || [];
+        if (apps.length === 0) {
+          toast({
+            title: "No data to export",
+            description: "The void is empty.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        const headers = [
+          "Company",
+          "Position",
+          "Status",
+          "Applied Date",
+          "Next Date",
+          "CV Version",
+          "Notes",
+        ];
+        const csvContent = [
+          headers.join(","),
+          ...apps.map((app: any) =>
+            [
+              app.company,
+              app.position,
+              app.status,
+              app.appliedDate,
+              app.nextDate || "",
+              app.cvVersion || "",
+              (app.notes || "").replace(/,/g, ";"),
+            ].join(",")
+          ),
+        ].join("\n");
+
+        const blob = new Blob([csvContent], { type: "text/csv" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `void-applications-${new Date().toISOString().split("T")[0]}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+
+      toast({
+        title: "Data exported",
+        description: "Your data has been extracted from the void.",
+      });
+    } catch (error) {
+      toast({
+        title: "Export failed",
+        description: "Failed to extract data from the void.",
+        variant: "destructive",
+      });
     }
-
-    toast({
-      title: "Data exported",
-      description: "Your data has been extracted from the void.",
-    });
   };
 
-  const handleImportData = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImportData = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
         const content = e.target?.result as string;
-        const data = JSON.parse(content);
+        const importData = JSON.parse(content);
 
-        if (data.applications) {
-          localStorage.setItem(
-            "void-applications",
-            JSON.stringify(data.applications)
-          );
-        }
-        if (data.documents) {
-          localStorage.setItem(
-            "void-documents",
-            JSON.stringify(data.documents)
-          );
+        // Import data via API
+        const response = await fetch("/api/import", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(importData),
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to import data");
         }
 
         toast({
@@ -204,8 +205,10 @@ export function SettingsContent() {
           description: "Your data has been cast into the void.",
         });
 
-        // Refresh the page to reflect imported data
-        window.location.reload();
+        // Refresh all data
+        await mutateSettings();
+        await mutate("/api/applications");
+        await mutate("/api/documents");
       } catch (error) {
         toast({
           title: "Import failed",
@@ -220,23 +223,39 @@ export function SettingsContent() {
     event.target.value = "";
   };
 
-  const handleClearAllData = () => {
-    localStorage.removeItem("void-applications");
-    localStorage.removeItem("void-documents");
-    localStorage.removeItem("void-settings");
+  const handleClearAllData = async () => {
+    try {
+      // Clear all data via API
+      const response = await fetch("/api/clear-data", {
+        method: "DELETE",
+      });
 
-    toast({
-      title: "All data cleared",
-      description: "The void has consumed everything. You are free.",
-    });
+      if (!response.ok) {
+        throw new Error("Failed to clear data");
+      }
 
-    setShowClearDataModal(false);
-    // Refresh the page
-    window.location.reload();
+      toast({
+        title: "All data cleared",
+        description: "The void has consumed everything. You are free.",
+      });
+
+      setShowClearDataModal(false);
+
+      // Refresh all data
+      await mutateSettings();
+      await mutate("/api/applications");
+      await mutate("/api/documents");
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to clear data.",
+        variant: "destructive",
+      });
+    }
   };
 
   const updateSetting = (key: keyof Settings, value: any) => {
-    setSettings((prev) => ({ ...prev, [key]: value }));
+    setFormData((prev) => ({ ...prev, [key]: value }));
   };
 
   if (error) {
@@ -248,6 +267,8 @@ export function SettingsContent() {
       </div>
     );
   }
+
+  const settings = data?.settings || formData;
 
   return (
     <div className="space-y-6">
@@ -269,7 +290,7 @@ export function SettingsContent() {
                 </p>
               </div>
               <Switch
-                checked={settings.notifications}
+                checked={formData.notifications}
                 onCheckedChange={(checked) =>
                   updateSetting("notifications", checked)
                 }
@@ -286,7 +307,7 @@ export function SettingsContent() {
                 </p>
               </div>
               <Switch
-                checked={settings.autoSync}
+                checked={formData.autoSync}
                 onCheckedChange={(checked) =>
                   updateSetting("autoSync", checked)
                 }
@@ -303,7 +324,7 @@ export function SettingsContent() {
                 </p>
               </div>
               <Switch
-                checked={settings.emailReminders}
+                checked={formData.emailReminders}
                 onCheckedChange={(checked) =>
                   updateSetting("emailReminders", checked)
                 }
@@ -316,7 +337,7 @@ export function SettingsContent() {
               </Label>
               <Input
                 type="number"
-                value={settings.dataRetention}
+                value={formData.dataRetention}
                 onChange={(e) =>
                   updateSetting(
                     "dataRetention",
@@ -334,11 +355,11 @@ export function SettingsContent() {
 
             <Button
               onClick={handleSaveSettings}
-              disabled={isLoading}
+              disabled={isSubmitting}
               className="w-full bg-[#00F57A] text-black hover:bg-[#00F57A]/90"
             >
               <Save className="h-4 w-4 mr-2" />
-              {isLoading ? "Saving..." : "Save Settings"}
+              {isSubmitting ? "Saving..." : "Save Settings"}
             </Button>
           </CardContent>
         </Card>
@@ -354,7 +375,7 @@ export function SettingsContent() {
             <div className="space-y-2">
               <Label className="text-gray-300 font-mono">Export Format</Label>
               <select
-                value={settings.exportFormat}
+                value={formData.exportFormat}
                 onChange={(e) => updateSetting("exportFormat", e.target.value)}
                 className="w-full px-3 py-2 bg-black border border-gray-700 rounded-md text-white font-mono text-sm"
               >
@@ -398,49 +419,30 @@ export function SettingsContent() {
       </div>
 
       {/* Danger Zone */}
-      <Card className="void-card border-red-700">
+      <Card className="void-card border-red-800">
         <CardHeader>
           <CardTitle className="font-mono text-red-400 flex items-center gap-2">
             <AlertTriangle className="h-5 w-5" />
             Danger Zone
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="p-4 rounded border border-red-700 bg-red-900/10">
-            <h4 className="font-mono text-red-400 font-medium mb-2">
-              Clear All Data
-            </h4>
-            <p className="text-red-300 text-sm mb-4 font-mono">
-              This will permanently delete all applications, documents, and
-              settings. This action cannot be undone. Everything will be
-              consumed by the void, forever.
-            </p>
-            <Button
-              onClick={() => setShowClearDataModal(true)}
-              variant="outline"
-              className="border-red-700 text-red-400 hover:bg-red-900/20"
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Clear All Data
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* About */}
-      <Card className="void-card">
-        <CardHeader>
-          <CardTitle className="font-mono text-white">About The Void</CardTitle>
-        </CardHeader>
         <CardContent>
-          <div className="space-y-3 text-sm font-mono text-gray-400">
-            <p>Version: 1.0.0</p>
-            <p>
-              Built for software engineers navigating the digital abyss of job
-              applications.
-            </p>
-            <p>Remember: The void stares back, but at least it's organized.</p>
-            <p className="text-[#00F57A]">/dev/null {">"} applications</p>
+          <div className="space-y-4">
+            <div>
+              <p className="text-gray-300 font-mono mb-2">Clear All Data</p>
+              <p className="text-gray-500 text-sm font-mono mb-4">
+                Permanently delete all applications, documents, and settings.
+                This action cannot be undone.
+              </p>
+              <Button
+                onClick={() => setShowClearDataModal(true)}
+                variant="outline"
+                className="border-red-700 text-red-400 hover:bg-red-900/20"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Clear All Data
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
