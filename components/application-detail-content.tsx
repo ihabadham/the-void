@@ -23,6 +23,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { ConfirmationModal } from "@/components/confirmation-modal";
+import { ApplicationDetailSkeleton } from "@/components/application-detail-skeleton";
 import useSWR from "swr";
 
 interface Application {
@@ -94,8 +95,6 @@ interface ApplicationDetailContentProps {
 export function ApplicationDetailContent({
   applicationId,
 }: ApplicationDetailContentProps) {
-  const [application, setApplication] = useState<Application | null>(null);
-  const [documents, setDocuments] = useState<Document[]>([]);
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState<Partial<Application>>({});
   const [newFiles, setNewFiles] = useState<AttachedFile[]>([]);
@@ -114,40 +113,17 @@ export function ApplicationDetailContent({
   const { toast } = useToast();
 
   // Use SWR for data fetching with caching
-  const { data, error, isLoading } = useSWR<ApplicationDetailData>(
+  const { data, error, isLoading, mutate } = useSWR<ApplicationDetailData>(
     `/api/applications/${applicationId}`,
     fetcher
   );
 
+  // Update form data when SWR data changes
   useEffect(() => {
-    // Load application from localStorage for now, prioritize database data when available
-    const stored = localStorage.getItem("void-applications");
-    if (stored) {
-      const applications = JSON.parse(stored);
-      const app = applications.find((a: Application) => a.id === applicationId);
-      if (app) {
-        setApplication(app);
-        setFormData(app);
-      }
-    }
-
-    // Load documents for this application
-    const storedDocs = localStorage.getItem("void-documents");
-    if (storedDocs) {
-      const allDocs = JSON.parse(storedDocs);
-      const appDocs = allDocs.filter(
-        (doc: Document) => doc.applicationId === applicationId
-      );
-      setDocuments(appDocs);
-    }
-
-    // Use database data when available
-    if (data?.application && data?.documents) {
-      setApplication(data.application);
+    if (data?.application) {
       setFormData(data.application);
-      setDocuments(data.documents);
     }
-  }, [applicationId, data]);
+  }, [data]);
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -183,61 +159,55 @@ export function ApplicationDetailContent({
   };
 
   const handleSave = async () => {
-    if (!application) return;
+    if (!data?.application) return;
 
     setIsSubmitting(true);
     try {
-      // Update application
-      const stored = localStorage.getItem("void-applications");
-      if (stored) {
-        const applications = JSON.parse(stored);
-        const index = applications.findIndex(
-          (a: Application) => a.id === applicationId
-        );
-        if (index !== -1) {
-          applications[index] = { ...application, ...formData };
-          localStorage.setItem(
-            "void-applications",
-            JSON.stringify(applications)
-          );
-          setApplication(applications[index]);
+      // Update application via API
+      const response = await fetch(`/api/applications/${applicationId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(formData),
+      });
 
-          // Save new files as documents
-          if (newFiles.length > 0) {
-            const existingDocuments = localStorage.getItem("void-documents");
-            const documents = existingDocuments
-              ? JSON.parse(existingDocuments)
-              : [];
+      if (!response.ok) {
+        throw new Error("Failed to update application");
+      }
 
-            const newDocuments: Document[] = newFiles.map((file) => ({
-              id: file.id,
-              name: file.name,
-              type: (file.name.toLowerCase().includes("cv") ||
-              file.name.toLowerCase().includes("resume")
-                ? "cv"
-                : "other") as "cv" | "cover-letter" | "portfolio" | "other",
-              uploadDate: new Date().toISOString(),
-              size: file.size,
-              url: file.url,
-              applicationId: applicationId,
-              applicationCompany: applications[index].company,
-            }));
+      // Handle new file uploads if any
+      if (newFiles.length > 0) {
+        const formDataUpload = new FormData();
+        formDataUpload.append("applicationId", applicationId);
 
-            documents.push(...newDocuments);
-            localStorage.setItem("void-documents", JSON.stringify(documents));
+        newFiles.forEach((file, index) => {
+          // Convert blob URL back to file if needed, or handle file upload differently
+          formDataUpload.append(`files`, file as any);
+        });
 
-            // Update local documents state
-            setDocuments((prev) => [...prev, ...newDocuments]);
-            setNewFiles([]);
+        const uploadResponse = await fetch(
+          `/api/applications/${applicationId}/documents`,
+          {
+            method: "POST",
+            body: formDataUpload,
           }
+        );
 
-          setIsEditing(false);
-          toast({
-            title: "Application updated",
-            description: `Changes committed to the void${newFiles.length > 0 ? ` with ${newFiles.length} new attachment(s)` : ""}.`,
-          });
+        if (!uploadResponse.ok) {
+          throw new Error("Failed to upload documents");
         }
       }
+
+      // Refresh data from server
+      await mutate();
+      setNewFiles([]);
+      setIsEditing(false);
+
+      toast({
+        title: "Application updated",
+        description: `Changes committed to the void${newFiles.length > 0 ? ` with ${newFiles.length} new attachment(s)` : ""}.`,
+      });
     } catch (error) {
       toast({
         title: "Error",
@@ -251,34 +221,20 @@ export function ApplicationDetailContent({
 
   const handleDelete = async () => {
     try {
-      const stored = localStorage.getItem("void-applications");
-      if (stored) {
-        const applications = JSON.parse(stored);
-        const filtered = applications.filter(
-          (a: Application) => a.id !== applicationId
-        );
-        localStorage.setItem("void-applications", JSON.stringify(filtered));
+      const response = await fetch(`/api/applications/${applicationId}`, {
+        method: "DELETE",
+      });
 
-        // Remove associated documents
-        const storedDocuments = localStorage.getItem("void-documents");
-        if (storedDocuments) {
-          const documents = JSON.parse(storedDocuments);
-          const filteredDocuments = documents.filter(
-            (doc: any) => doc.applicationId !== applicationId
-          );
-          localStorage.setItem(
-            "void-documents",
-            JSON.stringify(filteredDocuments)
-          );
-        }
-
-        toast({
-          title: "Application deleted",
-          description: "Record consumed by the void.",
-        });
-        setShowDeleteModal(false);
-        router.push("/applications");
+      if (!response.ok) {
+        throw new Error("Failed to delete application");
       }
+
+      toast({
+        title: "Application deleted",
+        description: "Record consumed by the void.",
+      });
+      setShowDeleteModal(false);
+      router.push("/applications");
     } catch (error) {
       toast({
         title: "Error",
@@ -289,7 +245,7 @@ export function ApplicationDetailContent({
   };
 
   const handleDeleteDocument = (docId: string) => {
-    const doc = documents.find((d) => d.id === docId);
+    const doc = data?.documents?.find((d) => d.id === docId);
     if (!doc) return;
 
     setDeleteDocModal({
@@ -299,26 +255,32 @@ export function ApplicationDetailContent({
     });
   };
 
-  const confirmDeleteDocument = () => {
+  const confirmDeleteDocument = async () => {
     const { documentId } = deleteDocModal;
 
-    // Remove from documents state
-    setDocuments((prev) => prev.filter((doc) => doc.id !== documentId));
+    try {
+      const response = await fetch(`/api/documents/${documentId}`, {
+        method: "DELETE",
+      });
 
-    // Remove from localStorage
-    const storedDocuments = localStorage.getItem("void-documents");
-    if (storedDocuments) {
-      const documents = JSON.parse(storedDocuments);
-      const filteredDocuments = documents.filter(
-        (doc: any) => doc.id !== documentId
-      );
-      localStorage.setItem("void-documents", JSON.stringify(filteredDocuments));
+      if (!response.ok) {
+        throw new Error("Failed to delete document");
+      }
+
+      // Refresh data from server
+      await mutate();
+
+      toast({
+        title: "Document deleted",
+        description: "File consumed by the void.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete document.",
+        variant: "destructive",
+      });
     }
-
-    toast({
-      title: "Document deleted",
-      description: "File consumed by the void.",
-    });
 
     setDeleteDocModal({ isOpen: false, documentId: "", documentName: "" });
   };
@@ -337,7 +299,12 @@ export function ApplicationDetailContent({
     );
   }
 
-  if (!application) {
+  // Show skeleton while loading from database
+  if (isLoading) {
+    return <ApplicationDetailSkeleton />;
+  }
+
+  if (!data?.application) {
     return (
       <div className="flex-1 flex items-center justify-center p-6">
         <div className="text-center">
@@ -360,6 +327,9 @@ export function ApplicationDetailContent({
       </div>
     );
   }
+
+  const application = data.application;
+  const documents = data.documents || [];
 
   return (
     <div className="space-y-6">
