@@ -6,6 +6,7 @@ import {
   getDocumentsByUserId,
   getDocumentsByApplicationId,
   getUserSettings,
+  upsertUserSettings,
   getDashboardStats,
 } from "../data-access/applications";
 import type {
@@ -13,6 +14,7 @@ import type {
   Document,
   UserSettings,
   NewApplication,
+  NewUserSettings,
 } from "../database/schemas";
 
 /**
@@ -99,6 +101,20 @@ export async function getSettingsForCurrentUser(): Promise<UserSettings | null> 
   }
 
   return await getUserSettings(user.id);
+}
+
+/**
+ * Update user settings for the current authenticated user
+ */
+export async function updateSettingsForCurrentUser(
+  settingsData: Partial<NewUserSettings>
+): Promise<UserSettings> {
+  const user = await getCurrentUser();
+  if (!user) {
+    throw new Error("User not authenticated");
+  }
+
+  return await upsertUserSettings(user.id, settingsData);
 }
 
 /**
