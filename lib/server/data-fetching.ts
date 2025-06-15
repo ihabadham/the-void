@@ -2,12 +2,18 @@ import { getCurrentUser } from "../auth-helpers";
 import {
   getApplicationsByUserId,
   getApplicationById,
+  createApplication,
   getDocumentsByUserId,
   getDocumentsByApplicationId,
   getUserSettings,
   getDashboardStats,
 } from "../data-access/applications";
-import type { Application, Document, UserSettings } from "../database/schemas";
+import type {
+  Application,
+  Document,
+  UserSettings,
+  NewApplication,
+} from "../database/schemas";
 
 /**
  * Server-side data fetching utilities for use in Server Components
@@ -38,6 +44,23 @@ export async function getApplicationForCurrentUser(
   }
 
   return await getApplicationById(user.id, applicationId);
+}
+
+/**
+ * Create a new application for the current authenticated user
+ */
+export async function createApplicationForCurrentUser(
+  applicationData: Omit<NewApplication, "userId">
+): Promise<Application> {
+  const user = await getCurrentUser();
+  if (!user) {
+    throw new Error("User not authenticated");
+  }
+
+  return await createApplication({
+    ...applicationData,
+    userId: user.id,
+  });
 }
 
 /**

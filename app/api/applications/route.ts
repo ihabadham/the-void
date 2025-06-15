@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
-import { getApplicationsForCurrentUser } from "@/lib/server/data-fetching";
+import {
+  getApplicationsForCurrentUser,
+  createApplicationForCurrentUser,
+} from "@/lib/server/data-fetching";
 
 export async function GET() {
   try {
@@ -9,6 +12,25 @@ export async function GET() {
     console.error("Applications API error:", error);
     return NextResponse.json(
       { error: "Failed to fetch applications" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const body = await request.json();
+
+    const application = await createApplicationForCurrentUser(body);
+
+    return NextResponse.json({
+      success: true,
+      application,
+    });
+  } catch (error) {
+    console.error("Create application API error:", error);
+    return NextResponse.json(
+      { error: "Failed to create application" },
       { status: 500 }
     );
   }
