@@ -3,8 +3,11 @@ import {
   getApplicationsByUserId,
   getApplicationById,
   createApplication,
+  updateApplication,
+  deleteApplication,
   getDocumentsByUserId,
   getDocumentsByApplicationId,
+  createDocument,
   getUserSettings,
   upsertUserSettings,
   getDashboardStats,
@@ -15,6 +18,7 @@ import type {
   UserSettings,
   NewApplication,
   NewUserSettings,
+  NewDocument,
 } from "../database/schemas";
 
 /**
@@ -66,6 +70,35 @@ export async function createApplicationForCurrentUser(
 }
 
 /**
+ * Update an application for the current authenticated user
+ */
+export async function updateApplicationForCurrentUser(
+  applicationId: string,
+  updateData: Partial<NewApplication>
+): Promise<Application | null> {
+  const user = await getCurrentUser();
+  if (!user) {
+    throw new Error("User not authenticated");
+  }
+
+  return await updateApplication(user.id, applicationId, updateData);
+}
+
+/**
+ * Delete an application for the current authenticated user
+ */
+export async function deleteApplicationForCurrentUser(
+  applicationId: string
+): Promise<boolean> {
+  const user = await getCurrentUser();
+  if (!user) {
+    throw new Error("User not authenticated");
+  }
+
+  return await deleteApplication(user.id, applicationId);
+}
+
+/**
  * Get all documents for the current authenticated user
  */
 export async function getDocumentsForCurrentUser(): Promise<Document[]> {
@@ -89,6 +122,23 @@ export async function getDocumentsForApplication(
   }
 
   return await getDocumentsByApplicationId(user.id, applicationId);
+}
+
+/**
+ * Create a new document for the current authenticated user
+ */
+export async function createDocumentForCurrentUser(
+  documentData: Omit<NewDocument, "userId">
+): Promise<Document> {
+  const user = await getCurrentUser();
+  if (!user) {
+    throw new Error("User not authenticated");
+  }
+
+  return await createDocument({
+    ...documentData,
+    userId: user.id,
+  });
 }
 
 /**
