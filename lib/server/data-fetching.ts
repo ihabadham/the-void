@@ -2,11 +2,13 @@ import { getCurrentUser } from "../auth-helpers";
 import {
   getApplicationsByUserId,
   getApplicationById,
+} from "../data-access/applications";
+import { getUserSettings } from "../data-access/settings";
+import { getDashboardStats } from "../data-access/dashboard";
+import {
   getDocumentsByUserId,
   getDocumentsByApplicationId,
-  getUserSettings,
-  getDashboardStats,
-} from "../data-access/applications";
+} from "../data-access/documents";
 import type { Application, Document, UserSettings } from "../database/schemas";
 
 /**
