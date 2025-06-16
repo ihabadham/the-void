@@ -150,7 +150,12 @@ export async function upsertUserSettings(
         validatedUserId,
         validatedSettingsData
       );
-      return updated!;
+
+      if (!updated) {
+        throw new Error("Failed to update existing user settings");
+      }
+
+      return updated;
     } else {
       // Create new settings
       return await createUserSettings({
