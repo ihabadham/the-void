@@ -179,6 +179,11 @@ export async function clearDevData() {
 
 // Run if called directly
 if (require.main === module) {
+  if (process.env.NODE_ENV === "production") {
+    console.error("❌ Refusing to run seed script in production.");
+    process.exit(1);
+  }
+
   const command = process.argv[2];
 
   if (command === "clear") {
