@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 // Re-export all schemas from modular files
-export * from "./utils";
+export * from "./schemas";
 
 /**
  * Validation error handling utilities
