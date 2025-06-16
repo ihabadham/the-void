@@ -15,6 +15,7 @@ import type {
   User,
   UserSettings,
 } from "../database/schemas";
+import { randomUUID } from "crypto";
 
 /**
  * Server-side data fetching utilities for use in Server Components
@@ -132,7 +133,7 @@ export async function getSettingsWithDefaults(): Promise<UserSettings> {
   // Return defaults with user ID and dummy timestamps
   // These will not be persisted until explicitly saved
   return {
-    id: "default",
+    id: randomUUID(),
     userId: user.id,
     ...DEFAULT_USER_SETTINGS,
     createdAt: new Date(),
