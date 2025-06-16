@@ -46,12 +46,15 @@ export async function validateRequestBody<T>(
     }
 
     return result.data;
-  } catch (error) {
+  } catch (error: any) {
     if (error instanceof ValidationError) {
       throw error;
     }
-    // For JSON parsing errors, create a simpler error
-    throw new Error("Invalid JSON in request body");
+    // Handle empty body or invalid JSON as validation errors (400) instead of server errors (500)
+    if (error?.name === "SyntaxError" || error?.message?.includes("JSON")) {
+      throw new ValidationError("Invalid JSON in request body", []);
+    }
+    throw error;
   }
 }
 
