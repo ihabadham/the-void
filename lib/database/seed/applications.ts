@@ -130,13 +130,14 @@ export async function seedDevData() {
       return;
     }
 
-    // Insert applications
-    await database.insert(applications).values(SEED_APPLICATIONS);
-    console.log(`✅ Inserted ${SEED_APPLICATIONS.length} demo applications`);
+    // Insert applications and user settings
+    await database.transaction(async (tx) => {
+      await tx.insert(applications).values(SEED_APPLICATIONS);
+      console.log(`✅ Inserted ${SEED_APPLICATIONS.length} demo applications`);
 
-    // Insert user settings
-    await database.insert(userSettings).values(SEED_USER_SETTINGS);
-    console.log("⚙️  Inserted demo user settings");
+      await tx.insert(userSettings).values(SEED_USER_SETTINGS);
+      console.log("⚙️  Inserted demo user settings");
+    });
 
     console.log("🎉 Development data seeded successfully!");
     console.log(
@@ -152,13 +153,15 @@ export async function clearDevData() {
   try {
     console.log("🧹 Clearing development data...");
 
-    await database
-      .delete(applications)
-      .where(eq(applications.userId, DEMO_USER_ID));
+    await database.transaction(async (tx) => {
+      await tx
+        .delete(applications)
+        .where(eq(applications.userId, DEMO_USER_ID));
 
-    await database
-      .delete(userSettings)
-      .where(eq(userSettings.userId, DEMO_USER_ID));
+      await tx
+        .delete(userSettings)
+        .where(eq(userSettings.userId, DEMO_USER_ID));
+    });
 
     console.log("✅ Development data cleared");
   } catch (error) {
