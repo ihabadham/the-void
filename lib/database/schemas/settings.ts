@@ -17,9 +17,9 @@ export const userSettings = pgTable("user_settings", {
     .notNull()
     .unique(), // One settings record per user
   notifications: boolean("notifications").notNull().default(true),
-  autoSync: boolean("auto_sync").notNull().default(true),
+  autoSync: boolean("auto_sync").notNull().default(false),
   darkMode: boolean("dark_mode").notNull().default(true),
-  emailReminders: boolean("email_reminders").notNull().default(false),
+  emailReminders: boolean("email_reminders").notNull().default(true),
   exportFormat: text("export_format", {
     enum: ["json", "csv"],
   })
