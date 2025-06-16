@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { formSchemas } from "@/lib/validation/schemas";
 import { z } from "zod";
 
 /**
@@ -114,12 +115,14 @@ export function useFormValidation<T extends Record<string, any>>(
 /**
  * Pre-configured form validation hooks for specific schemas
  */
-export const useApplicationFormValidation = (initialValues?: any) => {
-  const { formSchemas } = require("../lib/validation/schemas");
+export const useApplicationFormValidation = (
+  initialValues?: z.input<typeof formSchemas.application>
+) => {
   return useFormValidation(formSchemas.application, initialValues);
 };
 
-export const useSettingsFormValidation = (initialValues?: any) => {
-  const { formSchemas } = require("../lib/validation/schemas");
+export const useSettingsFormValidation = (
+  initialValues?: z.input<typeof formSchemas.settings>
+) => {
   return useFormValidation(formSchemas.settings, initialValues);
 };
