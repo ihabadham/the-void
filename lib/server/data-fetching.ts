@@ -9,7 +9,12 @@ import {
   getDocumentsByUserId,
   getDocumentsByApplicationId,
 } from "../data-access/documents";
-import type { Application, Document, UserSettings } from "../database/schemas";
+import type {
+  Application,
+  Document,
+  User,
+  UserSettings,
+} from "../database/schemas";
 
 /**
  * Server-side data fetching utilities for use in Server Components
@@ -17,14 +22,19 @@ import type { Application, Document, UserSettings } from "../database/schemas";
  */
 
 /**
+ * Get the current authenticated user
+ */
+async function requireUser(): Promise<User> {
+  const u = await getCurrentUser();
+  if (!u) throw new ServerDataError("User not authenticated", "UNAUTHORIZED");
+  return u;
+}
+
+/**
  * Get all applications for the current authenticated user
  */
 export async function getApplicationsForCurrentUser(): Promise<Application[]> {
-  const user = await getCurrentUser();
-  if (!user) {
-    throw new Error("User not authenticated");
-  }
-
+  const user = await requireUser();
   return await getApplicationsByUserId(user.id);
 }
 
@@ -34,11 +44,7 @@ export async function getApplicationsForCurrentUser(): Promise<Application[]> {
 export async function getApplicationForCurrentUser(
   applicationId: string
 ): Promise<Application | null> {
-  const user = await getCurrentUser();
-  if (!user) {
-    throw new Error("User not authenticated");
-  }
-
+  const user = await requireUser();
   return await getApplicationById(user.id, applicationId);
 }
 
@@ -46,11 +52,7 @@ export async function getApplicationForCurrentUser(
  * Get all documents for the current authenticated user
  */
 export async function getDocumentsForCurrentUser(): Promise<Document[]> {
-  const user = await getCurrentUser();
-  if (!user) {
-    throw new Error("User not authenticated");
-  }
-
+  const user = await requireUser();
   return await getDocumentsByUserId(user.id);
 }
 
@@ -60,11 +62,7 @@ export async function getDocumentsForCurrentUser(): Promise<Document[]> {
 export async function getDocumentsForApplication(
   applicationId: string
 ): Promise<Document[]> {
-  const user = await getCurrentUser();
-  if (!user) {
-    throw new Error("User not authenticated");
-  }
-
+  const user = await requireUser();
   return await getDocumentsByApplicationId(user.id, applicationId);
 }
 
@@ -72,11 +70,7 @@ export async function getDocumentsForApplication(
  * Get user settings for the current authenticated user
  */
 export async function getSettingsForCurrentUser(): Promise<UserSettings | null> {
-  const user = await getCurrentUser();
-  if (!user) {
-    throw new Error("User not authenticated");
-  }
-
+  const user = await requireUser();
   return await getUserSettings(user.id);
 }
 
@@ -84,11 +78,7 @@ export async function getSettingsForCurrentUser(): Promise<UserSettings | null> 
  * Get dashboard statistics for the current authenticated user
  */
 export async function getDashboardDataForCurrentUser() {
-  const user = await getCurrentUser();
-  if (!user) {
-    throw new Error("User not authenticated");
-  }
-
+  const user = await requireUser();
   return await getDashboardStats(user.id);
 }
 
@@ -96,11 +86,7 @@ export async function getDashboardDataForCurrentUser() {
  * Get application and documents together (for application detail pages)
  */
 export async function getApplicationWithDocuments(applicationId: string) {
-  const user = await getCurrentUser();
-  if (!user) {
-    throw new Error("User not authenticated");
-  }
-
+  const user = await requireUser();
   const [application, documents] = await Promise.all([
     getApplicationById(user.id, applicationId),
     getDocumentsByApplicationId(user.id, applicationId),
@@ -136,11 +122,7 @@ export const DEFAULT_USER_SETTINGS: Omit<
  * If no settings exist, return defaults without creating them
  */
 export async function getSettingsWithDefaults(): Promise<UserSettings> {
-  const user = await getCurrentUser();
-  if (!user) {
-    throw new Error("User not authenticated");
-  }
-
+  const user = await requireUser();
   const settings = await getUserSettings(user.id);
 
   if (settings) {
