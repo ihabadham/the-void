@@ -118,14 +118,21 @@ export async function seedDevData() {
   try {
     console.log("🌱 Seeding development data...");
 
-    // Check if data already exists
-    const existingApps = await database
-      .select()
-      .from(applications)
-      .where(eq(applications.userId, DEMO_USER_ID))
-      .limit(1);
+    // Check if any demo data already exists
+    const [existingApps, existingSettings] = await Promise.all([
+      database
+        .select()
+        .from(applications)
+        .where(eq(applications.userId, DEMO_USER_ID))
+        .limit(1),
+      database
+        .select()
+        .from(userSettings)
+        .where(eq(userSettings.userId, DEMO_USER_ID))
+        .limit(1),
+    ]);
 
-    if (existingApps.length > 0) {
+    if (existingApps.length > 0 || existingSettings.length > 0) {
       console.log("📊 Development data already exists, skipping seed");
       return;
     }
