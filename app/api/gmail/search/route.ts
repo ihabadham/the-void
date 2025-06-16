@@ -48,23 +48,35 @@ export const GET = withValidation(
     } catch (error) {
       console.error("Gmail search API error:", error);
 
-      // Handle specific Gmail API errors
-      if (error instanceof Error) {
-        if (error.message.includes("invalid query")) {
-          return createErrorResponse(
-            new Error("Invalid search query format"),
-            "Invalid search query format"
-          );
-        }
+      // Handle Gmail API errors -> cc https://developers.google.com/workspace/gmail/api/guides/handle-errors
+      const apiErr = error as any; // Gmail API error from googleapis
+      const status = apiErr.response?.status;
+      const reason = apiErr.response?.data?.error?.errors?.[0]?.reason;
 
-        if (error.message.includes("quota")) {
-          return createErrorResponse(
-            new Error("Gmail API quota exceeded"),
-            "Gmail API quota exceeded"
-          );
-        }
+      // Invalid query → 400 Bad Request or reason="badRequest"
+      if (status === 400 || reason === "badRequest") {
+        return createErrorResponse(
+          new Error("Invalid search query format"),
+          "Invalid search query format"
+        );
       }
 
+      // Quota exceeded → 403 Forbidden or userRateLimitExceeded/dailyLimitExceeded
+      if (
+        status === 403 ||
+        [
+          "userRateLimitExceeded",
+          "dailyLimitExceeded",
+          "rateLimitExceeded",
+        ].includes(reason)
+      ) {
+        return createErrorResponse(
+          new Error("Gmail API quota exceeded"),
+          "Gmail API quota exceeded"
+        );
+      }
+
+      // Fallback for any other errors
       return createErrorResponse(error, "Failed to search emails");
     }
   },
