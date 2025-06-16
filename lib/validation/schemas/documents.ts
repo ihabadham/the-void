@@ -18,7 +18,7 @@ export const documentSchemas = {
       "Document name too long (max 255 characters)"
     ),
     type: z.enum(["cv", "cover-letter", "portfolio", "other"]).default("other"),
-    url: z.string().optional(), // URL is optional as it may be generated
+    url: commonSchemas.url, // Validate URL format while keeping it optional
     size: z
       .number()
       .int("File size must be a whole number")
