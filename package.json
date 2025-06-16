@@ -20,11 +20,9 @@
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "db:drop": "drizzle-kit drop",
-    "db:test":       "tsx lib/database/test-connection.ts",
--   "db:seed":       "tsx lib/database/seed/applications.ts",
--   "db:seed:clear": "tsx lib/database/seed/applications.ts clear"
-+   "db:seed":       "cross-env NODE_ENV=development tsx lib/database/seed/applications.ts",
-+   "db:seed:clear": "cross-env NODE_ENV=development tsx lib/database/seed/applications.ts clear"
+    "db:test": "tsx lib/database/test-connection.ts",
+    "db:seed": "cross-env NODE_ENV=development tsx lib/database/seed/applications.ts",
+    "db:seed:clear": "cross-env NODE_ENV=development tsx lib/database/seed/applications.ts clear"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
@@ -98,6 +96,7 @@
     "@types/pg": "^8.15.4",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "cross-env": "^7.0.3",
     "drizzle-kit": "^0.31.1",
     "eslint": "^9.28.0",
     "eslint-config-next": "15.3.3",
