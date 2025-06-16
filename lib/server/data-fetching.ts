@@ -118,21 +118,29 @@ export const DEFAULT_USER_SETTINGS: Omit<
 };
 
 /**
+ * Type for user settings that may not be persisted yet
+ * When settings haven't been saved to the database, the ID is optional
+ */
+export type UserSettingsWithDefaults = Omit<UserSettings, "id"> & {
+  id?: string;
+};
+
+/**
  * Get user settings with defaults for current user
  * If no settings exist, return defaults without creating them
+ * Returns settings without ID when not persisted, clearly indicating non-persisted state
  */
-export async function getSettingsWithDefaults(): Promise<UserSettings> {
+export async function getSettingsWithDefaults(): Promise<UserSettingsWithDefaults> {
   const user = await requireUser();
   const settings = await getUserSettings(user.id);
 
   if (settings) {
+    // Return persisted settings with all required fields including ID
     return settings;
   }
 
-  // Return defaults with user ID and dummy timestamps
-  // These will not be persisted until explicitly saved
+  // Return defaults without ID - clearly indicates non-persisted state
   return {
-    id: "default",
     userId: user.id,
     ...DEFAULT_USER_SETTINGS,
     createdAt: new Date(),
