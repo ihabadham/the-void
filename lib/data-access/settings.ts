@@ -6,6 +6,12 @@ import {
   type NewUserSettings,
 } from "../database/schemas";
 
+// Safe update type that excludes protected fields
+export type UserSettingsUpdate = Omit<
+  Partial<NewUserSettings>,
+  "id" | "userId" | "createdAt" | "updatedAt"
+>;
+
 export async function getUserSettings(
   userId: string
 ): Promise<UserSettings | null> {
@@ -44,13 +50,33 @@ export async function createUserSettings(
 
 export async function updateUserSettings(
   userId: string,
-  updateData: Partial<NewUserSettings>
+  updateData: UserSettingsUpdate
 ): Promise<UserSettings | null> {
   try {
+    // Create a safe update object with only allowed fields
+    const safeUpdateData: Record<string, any> = {};
+
+    // Whitelist of allowed fields that can be updated
+    const allowedFields = [
+      "notifications",
+      "autoSync",
+      "darkMode",
+      "emailReminders",
+      "exportFormat",
+      "dataRetention",
+    ] as const;
+
+    // Only include allowed fields from updateData
+    for (const field of allowedFields) {
+      if (field in updateData && updateData[field] !== undefined) {
+        safeUpdateData[field] = updateData[field];
+      }
+    }
+
     const result = await database
       .update(userSettings)
       .set({
-        ...updateData,
+        ...safeUpdateData,
         updatedAt: new Date(),
       })
       .where(eq(userSettings.userId, userId))
@@ -65,7 +91,7 @@ export async function updateUserSettings(
 
 export async function upsertUserSettings(
   userId: string,
-  settingsData: Partial<NewUserSettings>
+  settingsData: UserSettingsUpdate
 ): Promise<UserSettings> {
   try {
     // Try to get existing settings

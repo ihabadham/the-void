@@ -6,6 +6,12 @@ import type {
   NewApplication,
 } from "../database/schemas/applications";
 
+// Safe update type that excludes protected fields
+export type ApplicationUpdate = Omit<
+  Partial<NewApplication>,
+  "id" | "userId" | "createdAt" | "updatedAt"
+>;
+
 export async function getApplicationsByUserId(
   userId: string
 ): Promise<Application[]> {
@@ -63,13 +69,36 @@ export async function createApplication(
 export async function updateApplication(
   userId: string,
   applicationId: string,
-  updateData: Partial<NewApplication>
+  updateData: ApplicationUpdate
 ): Promise<Application | null> {
   try {
+    // Create a safe update object with only allowed fields
+    const safeUpdateData: Record<string, any> = {};
+
+    // Whitelist of allowed fields that can be updated
+    const allowedFields = [
+      "company",
+      "position",
+      "status",
+      "appliedDate",
+      "nextDate",
+      "nextEvent",
+      "cvVersion",
+      "notes",
+      "jobUrl",
+    ] as const;
+
+    // Only include allowed fields from updateData
+    for (const field of allowedFields) {
+      if (field in updateData && updateData[field] !== undefined) {
+        safeUpdateData[field] = updateData[field];
+      }
+    }
+
     const result = await database
       .update(applications)
       .set({
-        ...updateData,
+        ...safeUpdateData,
         updatedAt: new Date(),
       })
       .where(
