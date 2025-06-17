@@ -45,16 +45,38 @@ export async function getDocumentsByApplicationId(
 }
 
 export async function getDocumentsByUserId(
-  userId: string
+  userId: string,
+  filters?: {
+    applicationId?: string;
+    type?: string;
+  }
 ): Promise<Document[]> {
   try {
     // Validate user ID
     const validatedUserId = validateData(commonSchemas.uuid, userId);
 
+    // Build where conditions array starting with user ID filter
+    const whereConditions = [eq(documents.userId, validatedUserId)];
+
+    // Add application ID filter if provided
+    if (filters?.applicationId) {
+      const validatedAppId = validateData(
+        commonSchemas.uuid,
+        filters.applicationId
+      );
+      whereConditions.push(eq(documents.applicationId, validatedAppId));
+    }
+
+    // Add type filter if provided
+    if (filters?.type) {
+      const validatedType = validateData(documentSchemas.type, filters.type);
+      whereConditions.push(eq(documents.type, validatedType));
+    }
+
     return await database
       .select()
       .from(documents)
-      .where(eq(documents.userId, validatedUserId))
+      .where(and(...whereConditions))
       .orderBy(desc(documents.uploadDate));
   } catch (error) {
     if (error instanceof ValidationError) {

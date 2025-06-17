@@ -25,28 +25,13 @@ export const GET = withValidation(
     // Require authentication
     const user = await requireAuth();
 
-    // Get documents for user
-    const documents = await getDocumentsByUserId(user.id);
+    // Get documents for user with filtering
+    const documents = await getDocumentsByUserId(user.id, {
+      applicationId: query?.applicationId,
+      type: query?.type,
+    });
 
-    // Filter by application if provided
-    let filteredDocuments = documents;
-    if (query?.applicationId) {
-      filteredDocuments = documents.filter(
-        (doc) => doc.applicationId === query.applicationId
-      );
-    }
-
-    // Filter by type if provided
-    if (query?.type) {
-      filteredDocuments = filteredDocuments.filter(
-        (doc) => doc.type === query.type
-      );
-    }
-
-    return createSuccessResponse(
-      filteredDocuments,
-      "Documents retrieved successfully"
-    );
+    return createSuccessResponse(documents, "Documents retrieved successfully");
   },
   {
     querySchema,
