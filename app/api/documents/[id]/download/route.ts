@@ -6,7 +6,10 @@ import {
 } from "@/lib/validation/api-utils";
 import { requireAuth } from "@/lib/auth-helpers";
 import { getDocumentById } from "@/lib/data-access/documents";
-import { downloadDocument } from "@/lib/storage/documents";
+import {
+  downloadDocument,
+  generateDocumentPath,
+} from "@/lib/storage/documents";
 import { documentSchemas } from "@/lib/validation/schemas/documents";
 
 // Route parameters schema
@@ -34,8 +37,13 @@ export const GET = withValidation(
         );
       }
 
-      // Generate file path for download
-      const filePath = `${user.id}/${document.applicationId}/${params!.id}-${document.name}`;
+      // Generate file path for download using shared helper to ensure consistency
+      const filePath = generateDocumentPath(
+        user.id,
+        document.applicationId,
+        params!.id,
+        document.name
+      );
 
       // Download file from storage
       const fileData = await downloadDocument(filePath);
