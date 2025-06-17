@@ -54,19 +54,25 @@ export const GET = withValidation(
         "Updated At",
       ].join(",");
 
+      const escapeCsv = (v: unknown) => {
+        const s = String(v ?? "");
+        // If it contains a quote, comma, or newline, wrap in quotes and double internal quotes
+        return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+      };
+
       const csvRows = applications.map((app) =>
         [
-          app.id,
-          `"${app.company}"`,
-          `"${app.position}"`,
-          app.status,
-          app.appliedDate.toISOString().split("T")[0],
-          app.nextDate ? app.nextDate.toISOString().split("T")[0] : "",
-          app.nextEvent ? `"${app.nextEvent}"` : "",
-          app.cvVersion ? `"${app.cvVersion}"` : "",
-          app.jobUrl || "",
-          app.createdAt.toISOString(),
-          app.updatedAt.toISOString(),
+          escapeCsv(app.id),
+          escapeCsv(app.company),
+          escapeCsv(app.position),
+          escapeCsv(app.status),
+          escapeCsv(app.appliedDate.toISOString().split("T")[0]),
+          escapeCsv(app.nextDate?.toISOString().split("T")[0] ?? ""),
+          escapeCsv(app.nextEvent),
+          escapeCsv(app.cvVersion),
+          escapeCsv(app.jobUrl),
+          escapeCsv(app.createdAt.toISOString()),
+          escapeCsv(app.updatedAt.toISOString()),
         ].join(",")
       );
 
