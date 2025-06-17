@@ -260,7 +260,8 @@ export async function deleteDocument(
 export async function getDocumentWithSignedUrl(
   userId: string,
   documentId: string,
-  expiresIn: number = 3600
+  expiresIn: number = 3600,
+  options?: { download?: boolean }
 ): Promise<(Document & { signedUrl?: string }) | null> {
   try {
     const document = await getDocumentById(userId, documentId);
@@ -277,7 +278,15 @@ export async function getDocumentWithSignedUrl(
           documentId,
           document.name
         );
-        const signedUrl = await getSignedDocumentUrl(filePath, expiresIn);
+        let signedUrl = await getSignedDocumentUrl(filePath, expiresIn);
+
+        // Append download parameter if requested
+        if (options?.download) {
+          const url = new URL(signedUrl);
+          url.searchParams.set("download", "true");
+          signedUrl = url.toString();
+        }
+
         return { ...document, signedUrl };
       } catch (error) {
         console.warn("Failed to generate signed URL:", error);

@@ -38,7 +38,8 @@ export const GET = withValidation(
     const document = await getDocumentWithSignedUrl(
       user.id,
       params!.id,
-      query?.expiresIn || 3600
+      query?.expiresIn || 3600,
+      { download: query?.download }
     );
 
     if (!document) {
