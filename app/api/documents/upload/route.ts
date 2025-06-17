@@ -43,19 +43,19 @@ export const POST = withValidation(
       const formData = await request.formData();
 
       // Extract file
-      const file = formData.get("file") as File;
-      if (!file) {
+      const fileField = formData.get("file");
+      if (!(fileField instanceof File)) {
         return createErrorResponse(
           new Error("No file provided"),
           "File is required"
         );
       }
+      const file = fileField as File;
 
       // Validate file if requested
       if (query?.validate !== false) {
         validateFile(file);
       }
-
       // Return file metadata for client-side processing
       const fileMetadata = {
         name: file.name,
