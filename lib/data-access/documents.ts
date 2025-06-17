@@ -8,6 +8,12 @@ import {
 import { validateData, ValidationError } from "../validation/utils";
 import { documentSchemas } from "../validation/schemas/documents";
 import { commonSchemas } from "../validation/schemas/common";
+import {
+  uploadDocument,
+  deleteDocumentFile,
+  getSignedDocumentUrl,
+  generateDocumentPath,
+} from "../storage/documents";
 
 export async function getDocumentsByApplicationId(
   userId: string,
@@ -88,6 +94,89 @@ export async function createDocument(
   }
 }
 
+export async function getDocumentById(
+  userId: string,
+  documentId: string
+): Promise<Document | null> {
+  try {
+    // Validate input parameters
+    const validatedUserId = validateData(commonSchemas.uuid, userId);
+    const validatedDocId = validateData(commonSchemas.uuid, documentId);
+
+    const result = await database
+      .select()
+      .from(documents)
+      .where(
+        and(
+          eq(documents.id, validatedDocId),
+          eq(documents.userId, validatedUserId)
+        )
+      )
+      .limit(1);
+
+    return result[0] || null;
+  } catch (error) {
+    if (error instanceof ValidationError) {
+      console.error("Document fetch validation error:", error.message);
+      throw error;
+    }
+    console.error("Error fetching document:", error);
+    throw new Error("Failed to fetch document");
+  }
+}
+
+export async function createDocumentWithFile(
+  file: File,
+  documentData: Omit<NewDocument, "url" | "size" | "mimeType">,
+  userId: string,
+  applicationId: string
+): Promise<Document> {
+  try {
+    // Generate document ID first
+    const documentId = crypto.randomUUID();
+
+    // Upload file to storage
+    const uploadResult = await uploadDocument(
+      file,
+      userId,
+      applicationId,
+      documentId
+    );
+
+    // Create document record with file info
+    const completeDocumentData: NewDocument = {
+      ...documentData,
+      id: documentId,
+      url: uploadResult.publicUrl,
+      size: file.size,
+      mimeType: file.type,
+    };
+
+    // Validate and create document
+    const validatedData = validateData(
+      documentSchemas.create.extend({
+        id: commonSchemas.uuid,
+        userId: commonSchemas.uuid,
+      }),
+      completeDocumentData
+    );
+
+    const result = await database
+      .insert(documents)
+      .values(validatedData)
+      .returning();
+
+    return result[0];
+  } catch (error) {
+    if (error instanceof ValidationError) {
+      console.error("Document creation validation error:", error.message);
+      throw error;
+    }
+    console.error("Error creating document with file:", error);
+    throw new Error("Failed to create document");
+  }
+}
+
 export async function deleteDocument(
   userId: string,
   documentId: string
@@ -97,6 +186,13 @@ export async function deleteDocument(
     const validatedUserId = validateData(commonSchemas.uuid, userId);
     const validatedDocId = validateData(commonSchemas.uuid, documentId);
 
+    // First, get the document to find the file path
+    const document = await getDocumentById(userId, documentId);
+    if (!document) {
+      return false;
+    }
+
+    // Delete the database record first
     const result = await database
       .delete(documents)
       .where(
@@ -107,7 +203,28 @@ export async function deleteDocument(
       )
       .returning();
 
-    return result.length > 0;
+    if (result.length === 0) {
+      return false;
+    }
+
+    // Delete the file from storage (if it exists)
+    if (document.url) {
+      try {
+        // Extract file path from URL or generate it
+        const filePath = generateDocumentPath(
+          userId,
+          document.applicationId,
+          documentId,
+          document.name
+        );
+        await deleteDocumentFile(filePath);
+      } catch (storageError) {
+        console.warn("Failed to delete file from storage:", storageError);
+        // Don't fail the entire operation if file deletion fails
+      }
+    }
+
+    return true;
   } catch (error) {
     if (error instanceof ValidationError) {
       console.error("Document deletion validation error:", error.message);
@@ -115,5 +232,47 @@ export async function deleteDocument(
     }
     console.error("Error deleting document:", error);
     throw new Error("Failed to delete document");
+  }
+}
+
+export async function getDocumentWithSignedUrl(
+  userId: string,
+  documentId: string,
+  expiresIn: number = 3600
+): Promise<(Document & { signedUrl?: string }) | null> {
+  try {
+    const document = await getDocumentById(userId, documentId);
+    if (!document) {
+      return null;
+    }
+
+    // Generate signed URL if document has a file
+    if (document.url) {
+      try {
+        const filePath = generateDocumentPath(
+          userId,
+          document.applicationId,
+          documentId,
+          document.name
+        );
+        const signedUrl = await getSignedDocumentUrl(filePath, expiresIn);
+        return { ...document, signedUrl };
+      } catch (error) {
+        console.warn("Failed to generate signed URL:", error);
+        // Return document without signed URL
+      }
+    }
+
+    return document;
+  } catch (error) {
+    if (error instanceof ValidationError) {
+      console.error(
+        "Document with signed URL validation error:",
+        error.message
+      );
+      throw error;
+    }
+    console.error("Error getting document with signed URL:", error);
+    throw new Error("Failed to get document with signed URL");
   }
 }
