@@ -1,4 +1,4 @@
-import { eq, desc, and, count } from "drizzle-orm";
+import { eq, desc, asc, and, count, like, sql, gte, lte } from "drizzle-orm";
 import { database } from "../database/connection";
 import { applications } from "../database/schemas/applications";
 import type {
@@ -14,18 +14,141 @@ export type ApplicationUpdate = Omit<
   "id" | "userId" | "createdAt" | "updatedAt"
 >;
 
+// Query types for pagination and filtering
+export interface ApplicationsQuery {
+  page?: number;
+  limit?: number;
+  status?: string;
+  search?: string;
+  sortBy?: "createdAt" | "appliedDate" | "company" | "position";
+  sortOrder?: "asc" | "desc";
+  dateFrom?: Date;
+  dateTo?: Date;
+}
+
+export interface PaginatedApplicationsResult {
+  applications: Application[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    hasNext: boolean;
+    hasPrev: boolean;
+  };
+}
+
+// Overloaded function signatures for better type safety
 export async function getApplicationsByUserId(
   userId: string
-): Promise<Application[]> {
+): Promise<Application[]>;
+export async function getApplicationsByUserId(
+  userId: string,
+  query: ApplicationsQuery & { page: number }
+): Promise<PaginatedApplicationsResult>;
+export async function getApplicationsByUserId(
+  userId: string,
+  query: ApplicationsQuery & { limit: number }
+): Promise<PaginatedApplicationsResult>;
+export async function getApplicationsByUserId(
+  userId: string,
+  query: ApplicationsQuery
+): Promise<Application[] | PaginatedApplicationsResult>;
+export async function getApplicationsByUserId(
+  userId: string,
+  query: ApplicationsQuery = {}
+): Promise<Application[] | PaginatedApplicationsResult> {
   try {
     // Validate user ID
     const validatedUserId = validateData(applicationSchemas.id, userId);
 
-    return await database
+    // Determine if pagination is requested
+    const isPaginated = query.page !== undefined || query.limit !== undefined;
+
+    // Set defaults
+    const page = query.page || 1;
+    const limit = query.limit ? Math.min(query.limit, 100) : undefined; // Cap at 100
+    const sortBy = query.sortBy || "createdAt";
+    const sortOrder = query.sortOrder || "desc";
+
+    // Build where conditions
+    const conditions = [eq(applications.userId, validatedUserId)];
+
+    // Add status filter (validate enum value)
+    if (query.status) {
+      const validStatus = validateData(applicationSchemas.status, query.status);
+      conditions.push(eq(applications.status, validStatus));
+    }
+
+    // Add search filter
+    if (query.search) {
+      const searchTerm = `%${query.search}%`;
+      conditions.push(
+        sql`(${applications.company} ILIKE ${searchTerm} OR ${applications.position} ILIKE ${searchTerm})`
+      );
+    }
+
+    // Add date range filters
+    if (query.dateFrom) {
+      conditions.push(gte(applications.appliedDate, query.dateFrom));
+    }
+    if (query.dateTo) {
+      conditions.push(lte(applications.appliedDate, query.dateTo));
+    }
+
+    // Combine all conditions
+    const whereClause =
+      conditions.length > 1 ? and(...conditions) : conditions[0];
+
+    // Build order by clause
+    const orderByClause =
+      sortOrder === "desc"
+        ? desc(applications[sortBy])
+        : asc(applications[sortBy]);
+
+    if (!isPaginated) {
+      // Simple query - return just the applications array
+      const applicationsResult = await database
+        .select()
+        .from(applications)
+        .where(whereClause)
+        .orderBy(orderByClause);
+
+      return applicationsResult;
+    }
+
+    // Paginated query - return paginated result
+    const offset = (page - 1) * limit!;
+
+    // Get total count for pagination
+    const [totalResult] = await database
+      .select({ count: count() })
+      .from(applications)
+      .where(whereClause);
+
+    const total = totalResult.count;
+    const totalPages = Math.ceil(total / limit!);
+
+    // Get applications with pagination
+    const applicationsResult = await database
       .select()
       .from(applications)
-      .where(eq(applications.userId, validatedUserId))
-      .orderBy(desc(applications.createdAt));
+      .where(whereClause)
+      .orderBy(orderByClause)
+      .limit(limit!)
+      .offset(offset);
+
+    return {
+      applications: applicationsResult,
+      pagination: {
+        page,
+        limit: limit!,
+        total,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1,
+      },
+    };
   } catch (error) {
     if (error instanceof ValidationError) {
       console.error("Applications fetch validation error:", error.message);
