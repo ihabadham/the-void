@@ -168,12 +168,13 @@ export async function createDocumentWithFile(
     // Create document record with file info
     const completeDocumentData: NewDocument = {
       ...documentData,
+      // Ensure IDs are consistent
+      applicationId,
       id: documentId,
       url: uploadResult.publicUrl,
       size: file.size,
       mimeType: file.type,
     };
-
     // Validate and create document
     const validatedData = validateData(
       documentSchemas.create.extend({
