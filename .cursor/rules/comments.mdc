@@ -1,0 +1,36 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+CURSOR RULE: MEANINGFUL CODE COMMENTS
+
+Write concise, value-adding comments only
+
+GUIDELINES:
+- Explain WHY, not WHAT - the code shows what it does
+- Document complex business logic and non-obvious decisions  
+- Skip obvious comments like "// increment counter" for counter++
+- Use TODO/FIXME/HACK prefixes for temporary solutions
+- Keep comments under 80 characters when possible
+- Update comments when code changes or delete if obsolete
+- NO TIME-RELATIVE LANGUAGE - avoid "improved", "optimized", "fixed", "updated"
+- Comments should describe current state, not history or changes
+- Keep comments professional and implementation-focused
+
+GOOD EXAMPLES:
+// Retry with exponential backoff to handle rate limits
+// Using binary search for O(log n) performance on sorted data  
+// HACK: API doesn't support batch delete, iterating individually
+// Cache results to avoid redundant API calls
+
+AVOID:
+// Create a new variable
+// Loop through the array
+// Return the result
+// Improved version of the previous function
+// Optimized for better performance
+// Fixed the bug in the original code
+
+
+REMEMBER: If someone can understand what your code does just by reading it, don't comment it. Save comments for the tricky stuff that needs context. Comments should be timeless and describe the current implementation, not its evolution.
