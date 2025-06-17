@@ -3,4 +3,33 @@ description:
 globs: 
 alwaysApply: true
 ---
-Whenever i ask you to do something about git or github, like asking to write a commit message, just write the message and hand it to me, do not try to run it in terminal.
+CURSOR RULE: GIT COMMIT HANDLING
+
+NEVER run git commands in terminal when handling git/github requests
+
+BASIC RULE:
+When asked to write commit messages, just provide the message text - don't execute commands
+
+FOR MULTIPLE COMMITS (big changes):
+When user requests multiple commit messages, follow these steps:
+1. Run `git status -u` to see all modified files
+2. Check <root-dir>/docs/version-control-guide.md for commit structure guidelines
+3. Group files logically and specify:
+   - Which files belong to each commit
+   - The commit message for each group
+   - Format: "Files: file1.js, file2.css | Message: your commit message here"
+
+FOR SINGLE COMMITS (small changes):
+Skip file grouping - just provide the commit message
+
+TRIGGER PHRASES:
+- "write a commit message for this"
+- "write multiple commit messages for what we just did"
+- Similar variations requesting commit messages
+
+EXAMPLE OUTPUT FOR MULTIPLE COMMITS:
+Files: src/auth.js, src/middleware/auth.js | Message: feat: implement JWT authentication system
+Files: README.md, docs/api.md | Message: docs: update authentication documentation
+Files: tests/auth.test.js | Message: test: add comprehensive auth middleware tests
+
+REMEMBER: Provide commit messages as text only - let the user execute the actual git commands.
