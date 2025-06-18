@@ -1,168 +1,106 @@
 "use client";
 
-import type React from "react";
-
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { ArrowLeft, Save, Upload, X } from "lucide-react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+import { format } from "date-fns";
+import { CalendarIcon, Loader2, FileText, Upload } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-
-interface AttachedFile {
-  id: string;
-  name: string;
-  size: number;
-  type: string;
-  url: string;
-}
+import { useCreateApplication } from "@/hooks/use-applications";
+import type { CreateApplicationData } from "@/lib/api-client";
 
 export default function NewApplicationPage() {
-  const [formData, setFormData] = useState({
-    company: "",
-    position: "",
-    status: "applied" as const,
-    appliedDate: new Date().toISOString().split("T")[0],
-    nextDate: "",
-    nextEvent: "",
-    notes: "",
-    jobUrl: "",
-  });
-  const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
+  const createApplicationMutation = useCreateApplication();
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (!files) return;
+  const [formData, setFormData] = useState<CreateApplicationData>({
+    company: "",
+    position: "",
+    jobUrl: "",
+    appliedDate: new Date().toISOString().split("T")[0],
+    status: "applied",
+    nextEvent: "",
+    nextDate: "",
+    notes: "",
+    cvVersion: "",
+  });
 
-    Array.from(files).forEach((file) => {
-      const newFile: AttachedFile = {
-        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        url: URL.createObjectURL(file),
-      };
-      setAttachedFiles((prev) => [...prev, newFile]);
-    });
+  const [nextDateCalendar, setNextDateCalendar] = useState<Date>();
 
-    // Reset file input
-    event.target.value = "";
+  const handleInputChange = (
+    field: keyof CreateApplicationData,
+    value: string
+  ) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const removeFile = (fileId: string) => {
-    setAttachedFiles((prev) => prev.filter((file) => file.id !== fileId));
-  };
-
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return "0 Bytes";
-    const k = 1024;
-    const sizes = ["Bytes", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return (
-      Number.parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i]
-    );
+  const handleDateSelect = (date: Date | undefined) => {
+    setNextDateCalendar(date);
+    setFormData((prev) => ({
+      ...prev,
+      nextDate: date ? date.toISOString().split("T")[0] : "",
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
 
-    try {
-      // Generate unique ID
-      const applicationId = Date.now().toString();
+    // Clean data: remove empty strings to avoid validation errors
+    const cleanedData = Object.fromEntries(
+      Object.entries(formData).map(([key, value]) => [
+        key,
+        typeof value === "string" && value.trim() === "" ? undefined : value,
+      ])
+    ) as CreateApplicationData;
 
-      // Create new application
-      const newApplication = {
-        id: applicationId,
-        ...formData,
-        appliedDate:
-          formData.appliedDate || new Date().toISOString().split("T")[0],
-        attachments: attachedFiles.map((file) => file.id),
-      };
-
-      // Save attached files to documents with application reference
-      const existingDocuments = localStorage.getItem("void-documents");
-      const documents = existingDocuments ? JSON.parse(existingDocuments) : [];
-
-      const newDocuments = attachedFiles.map((file) => ({
-        id: file.id,
-        name: file.name,
-        type:
-          file.name.toLowerCase().includes("cv") ||
-          file.name.toLowerCase().includes("resume")
-            ? "cv"
-            : "other",
-        uploadDate: new Date().toISOString(),
-        size: file.size,
-        url: file.url,
-        applicationId: applicationId, // Link document to application
-        applicationCompany: formData.company,
-      }));
-
-      documents.push(...newDocuments);
-      localStorage.setItem("void-documents", JSON.stringify(documents));
-
-      // Load existing applications
-      const existing = localStorage.getItem("void-applications");
-      const applications = existing ? JSON.parse(existing) : [];
-
-      // Add new application
-      applications.push(newApplication);
-
-      // Save to localStorage
-      localStorage.setItem("void-applications", JSON.stringify(applications));
-
-      toast({
-        title: "Application logged successfully",
-        description: `Record committed to the void with ${attachedFiles.length} attachment(s).`,
-      });
-
-      router.push("/applications");
-    } catch (error) {
-      toast({
-        title: "Error",
-        description:
-          "Failed to log application. The void rejected your offering.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleInputChange = (field: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+    createApplicationMutation.mutate(cleanedData, {
+      onSuccess: () => {
+        toast({
+          title: "Application logged successfully",
+          description: "Your application has been cast into the void.",
+        });
+        router.push("/applications");
+      },
+      onError: (error) => {
+        toast({
+          title: "Failed to log application",
+          description: error.message || "The void rejected your offering.",
+          variant: "destructive",
+        });
+      },
+    });
   };
 
   return (
     <div className="flex-1 space-y-6 p-6">
       <div className="flex items-center gap-4">
         <SidebarTrigger />
-        <Button
-          variant="outline"
-          size="sm"
-          asChild
-          className="border-gray-700 text-gray-300 hover:bg-gray-800"
-        >
-          <Link href="/applications">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back
-          </Link>
-        </Button>
         <div>
           <h1 className="font-mono text-3xl font-medium text-white">
-            Log Application
+            Log New Application
           </h1>
           <p className="text-gray-400 font-mono text-sm">
-            Cast another application into the digital abyss.
+            Cast another application into the digital abyss
           </p>
         </div>
       </div>
@@ -175,18 +113,19 @@ export default function NewApplicationPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Basic Information */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="company" className="text-gray-300 font-mono">
-                  Company *
+                  Company Name *
                 </Label>
                 <Input
                   id="company"
                   value={formData.company}
                   onChange={(e) => handleInputChange("company", e.target.value)}
+                  className="bg-black border-gray-700 text-white placeholder:text-gray-500"
                   placeholder="Enter company name"
                   required
-                  className="bg-black border-gray-700 text-white placeholder:text-gray-500"
                 />
               </div>
 
@@ -200,80 +139,9 @@ export default function NewApplicationPage() {
                   onChange={(e) =>
                     handleInputChange("position", e.target.value)
                   }
-                  placeholder="Enter job title"
+                  className="bg-black border-gray-700 text-white placeholder:text-gray-500"
+                  placeholder="Enter position title"
                   required
-                  className="bg-black border-gray-700 text-white placeholder:text-gray-500"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="status" className="text-gray-300 font-mono">
-                  Status
-                </Label>
-                <select
-                  id="status"
-                  value={formData.status}
-                  onChange={(e) => handleInputChange("status", e.target.value)}
-                  className="w-full px-3 py-2 bg-black border border-gray-700 rounded-md text-white font-mono text-sm"
-                >
-                  <option value="applied">Applied</option>
-                  <option value="assessment">Assessment Pending</option>
-                  <option value="interview">Interview Scheduled</option>
-                  <option value="offer">Offer</option>
-                  <option value="rejected">Rejected</option>
-                  <option value="withdrawn">Withdrawn</option>
-                </select>
-              </div>
-
-              <div className="space-y-2">
-                <Label
-                  htmlFor="appliedDate"
-                  className="text-gray-300 font-mono"
-                >
-                  Applied Date
-                </Label>
-                <Input
-                  id="appliedDate"
-                  type="date"
-                  value={formData.appliedDate}
-                  onChange={(e) =>
-                    handleInputChange("appliedDate", e.target.value)
-                  }
-                  className="bg-black border-gray-700 text-white"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="nextDate" className="text-gray-300 font-mono">
-                  Next Key Date
-                </Label>
-                <Input
-                  id="nextDate"
-                  type="date"
-                  value={formData.nextDate}
-                  onChange={(e) =>
-                    handleInputChange("nextDate", e.target.value)
-                  }
-                  className="bg-black border-gray-700 text-white"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="nextEvent" className="text-gray-300 font-mono">
-                  Event Type
-                </Label>
-                <Input
-                  id="nextEvent"
-                  value={formData.nextEvent}
-                  onChange={(e) =>
-                    handleInputChange("nextEvent", e.target.value)
-                  }
-                  placeholder="e.g., Interview, Assessment"
-                  className="bg-black border-gray-700 text-white placeholder:text-gray-500"
                 />
               </div>
             </div>
@@ -287,101 +155,211 @@ export default function NewApplicationPage() {
                 type="url"
                 value={formData.jobUrl}
                 onChange={(e) => handleInputChange("jobUrl", e.target.value)}
-                placeholder="https://..."
                 className="bg-black border-gray-700 text-white placeholder:text-gray-500"
+                placeholder="https://company.com/jobs/role"
               />
             </div>
 
-            {/* File Upload Section */}
-            <div className="space-y-2">
-              <Label className="text-gray-300 font-mono">Attachments</Label>
-              <div className="space-y-3">
-                <div>
-                  <input
-                    type="file"
-                    id="file-upload"
-                    className="hidden"
-                    multiple
-                    accept=".pdf,.doc,.docx,.txt"
-                    onChange={handleFileUpload}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() =>
-                      document.getElementById("file-upload")?.click()
-                    }
-                    className="border-gray-700 text-gray-300 hover:bg-gray-800"
-                  >
-                    <Upload className="h-4 w-4 mr-2" />
-                    Attach Files (CV, Cover Letter, etc.)
-                  </Button>
-                </div>
+            {/* Application Details */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label
+                  htmlFor="appliedDate"
+                  className="text-gray-300 font-mono"
+                >
+                  Applied Date *
+                </Label>
+                <Input
+                  id="appliedDate"
+                  type="date"
+                  value={formData.appliedDate}
+                  onChange={(e) =>
+                    handleInputChange("appliedDate", e.target.value)
+                  }
+                  className="bg-black border-gray-700 text-white"
+                  required
+                />
+              </div>
 
-                {attachedFiles.length > 0 && (
-                  <div className="space-y-2">
-                    {attachedFiles.map((file) => (
-                      <div
-                        key={file.id}
-                        className="flex items-center justify-between p-2 rounded border border-gray-700"
-                      >
-                        <div>
-                          <p className="text-white text-sm font-medium">
-                            {file.name}
-                          </p>
-                          <p className="text-gray-400 text-xs font-mono">
-                            {formatFileSize(file.size)}
-                          </p>
-                        </div>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => removeFile(file.id)}
-                          className="border-red-700 text-red-400 hover:bg-red-900/20"
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                )}
+              <div className="space-y-2">
+                <Label className="text-gray-300 font-mono">Status</Label>
+                <Select
+                  value={formData.status}
+                  onValueChange={(value) => handleInputChange("status", value)}
+                >
+                  <SelectTrigger className="bg-black border-gray-700 text-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-black border-gray-700">
+                    <SelectItem
+                      value="applied"
+                      className="text-white hover:bg-gray-800"
+                    >
+                      Applied
+                    </SelectItem>
+                    <SelectItem
+                      value="assessment"
+                      className="text-white hover:bg-gray-800"
+                    >
+                      Assessment
+                    </SelectItem>
+                    <SelectItem
+                      value="interview"
+                      className="text-white hover:bg-gray-800"
+                    >
+                      Interview
+                    </SelectItem>
+                    <SelectItem
+                      value="offer"
+                      className="text-white hover:bg-gray-800"
+                    >
+                      Offer
+                    </SelectItem>
+                    <SelectItem
+                      value="rejected"
+                      className="text-white hover:bg-gray-800"
+                    >
+                      Rejected
+                    </SelectItem>
+                    <SelectItem
+                      value="withdrawn"
+                      className="text-white hover:bg-gray-800"
+                    >
+                      Withdrawn
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
+            {/* Next Event */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="nextEvent" className="text-gray-300 font-mono">
+                  Next Event
+                </Label>
+                <Input
+                  id="nextEvent"
+                  value={formData.nextEvent}
+                  onChange={(e) =>
+                    handleInputChange("nextEvent", e.target.value)
+                  }
+                  className="bg-black border-gray-700 text-white placeholder:text-gray-500"
+                  placeholder="e.g., Phone screen, Technical interview"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-gray-300 font-mono">Next Date</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal bg-black border-gray-700 text-white hover:bg-gray-800",
+                        !nextDateCalendar && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {nextDateCalendar ? (
+                        format(nextDateCalendar, "PPP")
+                      ) : (
+                        <span>Pick a date</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0 bg-black border-gray-700">
+                    <Calendar
+                      mode="single"
+                      selected={nextDateCalendar}
+                      onSelect={handleDateSelect}
+                      initialFocus
+                      className="bg-black text-white"
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </div>
+
+            {/* CV Version */}
+            <div className="space-y-2">
+              <Label htmlFor="cvVersion" className="text-gray-300 font-mono">
+                CV/Resume Version
+              </Label>
+              <Input
+                id="cvVersion"
+                value={formData.cvVersion}
+                onChange={(e) => handleInputChange("cvVersion", e.target.value)}
+                className="bg-black border-gray-700 text-white placeholder:text-gray-500"
+                placeholder="e.g., Software Engineer v2.1, Frontend Specialist"
+              />
+            </div>
+
+            {/* Notes Section */}
             <div className="space-y-2">
               <Label htmlFor="notes" className="text-gray-300 font-mono">
-                Notes
+                Notes & Details
               </Label>
               <Textarea
                 id="notes"
                 value={formData.notes}
                 onChange={(e) => handleInputChange("notes", e.target.value)}
-                placeholder="Additional notes, contacts, or preparation points..."
-                rows={4}
-                className="bg-black border-gray-700 text-white placeholder:text-gray-500"
+                className="bg-black border-gray-700 text-white placeholder:text-gray-500 min-h-[120px]"
+                placeholder="Requirements, qualifications, company culture, contact details, interview prep notes..."
               />
+              <p className="text-xs text-gray-500 font-mono">
+                Use this field for requirements, interview preparation, company
+                research, or any other relevant details.
+              </p>
             </div>
 
-            <div className="flex gap-4">
-              <Button
-                type="submit"
-                disabled={
-                  isSubmitting || !formData.company || !formData.position
-                }
-                className="bg-[#00F57A] text-black hover:bg-[#00F57A]/90 disabled:opacity-50"
-              >
-                <Save className="h-4 w-4 mr-2" />
-                {isSubmitting ? "Logging..." : "Log Application"}
-              </Button>
+            {/* File Upload Section - Currently disabled pending documents integration */}
+            <div className="space-y-2">
+              <Label className="text-gray-300 font-mono">Documents</Label>
+              <div className="border-2 border-dashed border-gray-700 rounded-lg p-6 text-center">
+                <FileText className="h-12 w-12 text-gray-600 mx-auto mb-4" />
+                <p className="text-gray-400 font-mono text-sm mb-2">
+                  Document upload will be available after Phase 3 migration
+                </p>
+                <p className="text-gray-500 font-mono text-xs">
+                  CV/Resume, cover letter, portfolio links
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled
+                  className="mt-4 border-gray-700 text-gray-500"
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  Upload Files (Coming Soon)
+                </Button>
+              </div>
+            </div>
 
+            {/* Form Actions */}
+            <div className="flex justify-end gap-4 pt-4">
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => router.push("/applications")}
+                onClick={() => router.back()}
                 className="border-gray-700 text-gray-300 hover:bg-gray-800"
               >
                 Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={createApplicationMutation.isPending}
+                className="bg-[#00F57A] text-black hover:bg-[#00F57A]/90"
+              >
+                {createApplicationMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Logging...
+                  </>
+                ) : (
+                  "Log Application"
+                )}
               </Button>
             </div>
           </form>
