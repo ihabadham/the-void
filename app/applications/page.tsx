@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,7 @@ import {
   useApplications,
   useDeleteApplication,
 } from "@/hooks/use-applications";
+import { useDocuments } from "@/hooks/use-documents";
 import type { Application } from "@/lib/api-client";
 
 const statusColors = {
@@ -35,16 +36,18 @@ const statusColors = {
   withdrawn: "bg-gray-500",
 };
 
+interface DeleteModalState {
+  isOpen: boolean;
+  applicationId: string;
+  applicationName: string;
+  attachmentCount: number;
+}
+
 export default function ApplicationsPage() {
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [deleteModal, setDeleteModal] = useState<{
-    isOpen: boolean;
-    applicationId: string;
-    applicationName: string;
-    attachmentCount: number;
-  }>({
+  const [deleteModal, setDeleteModal] = useState<DeleteModalState>({
     isOpen: false,
     applicationId: "",
     applicationName: "",
@@ -59,17 +62,26 @@ export default function ApplicationsPage() {
     sortOrder: "desc",
   });
 
+  const { data: allDocuments = [] } = useDocuments();
+
   const deleteApplicationMutation = useDeleteApplication();
 
   const applications = data?.applications || [];
   const pagination = data?.pagination;
 
+  // Count documents for a specific application
+  const getDocumentCount = (applicationId: string): number => {
+    return allDocuments.filter((doc) => doc.applicationId === applicationId)
+      .length;
+  };
+
   const openDeleteModal = (app: Application) => {
+    const attachmentCount = getDocumentCount(app.id);
     setDeleteModal({
       isOpen: true,
       applicationId: app.id,
       applicationName: `${app.company} - ${app.position}`,
-      attachmentCount: 0, // TODO: This will be updated when we implement documents integration
+      attachmentCount,
     });
   };
 
@@ -242,106 +254,98 @@ export default function ApplicationsPage() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {applications.map((app) => (
-            <Card
-              key={app.id}
-              className="void-card hover:border-gray-600 transition-colors"
-            >
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <CardTitle className="font-mono text-white text-lg mb-1">
-                      {app.company}
-                    </CardTitle>
-                    <p className="text-gray-400 text-sm">{app.position}</p>
-                  </div>
-                  <Badge
-                    className={`${statusColors[app.status]} text-black text-xs font-mono ml-2`}
-                  >
-                    {app.status.toUpperCase()}
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center gap-2 text-sm text-gray-400">
-                  <Calendar className="h-4 w-4" />
-                  <span className="font-mono">
-                    Applied: {new Date(app.appliedDate).toLocaleDateString()}
-                  </span>
-                </div>
+          {applications.map((app) => {
+            const attachmentCount = getDocumentCount(app.id);
 
-                {app.nextDate && (
-                  <div className="flex items-center gap-2 text-sm text-[#00F57A]">
+            return (
+              <Card
+                key={app.id}
+                className="void-card hover:border-gray-600 transition-colors"
+              >
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <CardTitle className="font-mono text-white text-lg mb-1">
+                        {app.company}
+                      </CardTitle>
+                      <p className="text-gray-400 text-sm">{app.position}</p>
+                    </div>
+                    <Badge
+                      className={`${statusColors[app.status]} text-black text-xs font-mono ml-2`}
+                    >
+                      {app.status.toUpperCase()}
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex items-center gap-2 text-sm text-gray-400">
                     <Calendar className="h-4 w-4" />
                     <span className="font-mono">
-                      {app.nextEvent}:{" "}
-                      {new Date(app.nextDate).toLocaleDateString()}
+                      Applied: {new Date(app.appliedDate).toLocaleDateString()}
                     </span>
                   </div>
-                )}
 
-                {(() => {
-                  const storedDocuments =
-                    localStorage.getItem("void-documents");
-                  let attachmentCount = 0;
+                  {app.nextDate && (
+                    <div className="flex items-center gap-2 text-sm text-[#00F57A]">
+                      <Calendar className="h-4 w-4" />
+                      <span className="font-mono">
+                        {app.nextEvent}:{" "}
+                        {new Date(app.nextDate).toLocaleDateString()}
+                      </span>
+                    </div>
+                  )}
 
-                  if (storedDocuments) {
-                    const documents = JSON.parse(storedDocuments);
-                    attachmentCount = documents.filter(
-                      (doc: any) => doc.applicationId === app.id
-                    ).length;
-                  }
-
-                  return attachmentCount > 0 ? (
+                  {attachmentCount > 0 && (
                     <div className="flex items-center gap-2 text-sm text-gray-400">
                       <FileText className="h-4 w-4" />
                       <span className="font-mono">
-                        {attachmentCount} attachment(s)
+                        {attachmentCount} attachment
+                        {attachmentCount !== 1 ? "s" : ""}
                       </span>
                     </div>
-                  ) : null;
-                })()}
+                  )}
 
-                <div className="flex items-center gap-2 pt-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => router.push(`/applications/${app.id}`)}
-                    className="flex-1 border-gray-700 text-gray-300 hover:bg-gray-800"
-                  >
-                    <Eye className="h-4 w-4 mr-2" />
-                    View Details
-                  </Button>
-
-                  {app.jobUrl && (
+                  <div className="flex items-center gap-2 pt-2">
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => window.open(app.jobUrl, "_blank")}
-                      className="border-gray-700 text-gray-300 hover:bg-gray-800"
+                      onClick={() => router.push(`/applications/${app.id}`)}
+                      className="flex-1 border-gray-700 text-gray-300 hover:bg-gray-800"
                     >
-                      <ExternalLink className="h-4 w-4" />
+                      <Eye className="h-4 w-4 mr-2" />
+                      View Details
                     </Button>
-                  )}
 
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => openDeleteModal(app)}
-                    disabled={deleteApplicationMutation.isPending}
-                    className="border-red-700 text-red-400 hover:bg-red-900/20"
-                  >
-                    {deleteApplicationMutation.isPending &&
-                    deleteApplicationMutation.variables === app.id ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Trash2 className="h-4 w-4" />
+                    {app.jobUrl && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => window.open(app.jobUrl, "_blank")}
+                        className="border-gray-700 text-gray-300 hover:bg-gray-800"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </Button>
                     )}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openDeleteModal(app)}
+                      disabled={deleteApplicationMutation.isPending}
+                      className="border-red-700 text-red-400 hover:bg-red-900/20"
+                    >
+                      {deleteApplicationMutation.isPending &&
+                      deleteApplicationMutation.variables === app.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
 
@@ -365,7 +369,7 @@ export default function ApplicationsPage() {
         }
         onConfirm={confirmDelete}
         title="Delete Application"
-        description={`Are you sure you want to delete "${deleteModal.applicationName}"?\n\nThis will permanently delete:\n• The application record\n• ${deleteModal.attachmentCount} attached document(s)\n• All associated data\n\nThis action cannot be undone. Everything will be consumed by the void, forever.`}
+        description={`Are you sure you want to delete "${deleteModal.applicationName}"?\n\nThis will permanently delete:\n• The application record\n• ${deleteModal.attachmentCount} attached document${deleteModal.attachmentCount !== 1 ? "s" : ""}\n• All associated data\n\nThis action cannot be undone. Everything will be consumed by the void, forever.`}
         confirmText="Delete Forever"
         destructive={true}
       />
