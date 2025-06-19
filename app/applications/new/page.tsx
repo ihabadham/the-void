@@ -23,15 +23,20 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { CalendarIcon, Loader2, FileText, Upload } from "lucide-react";
+import { CalendarIcon, Loader2, FileText, Upload, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useCreateApplication } from "@/hooks/use-applications";
-import type { CreateApplicationData } from "@/lib/api-client";
+import { useCreateDocument } from "@/hooks/use-documents";
+import type {
+  CreateApplicationData,
+  CreateDocumentData,
+} from "@/lib/api-client";
 
 export default function NewApplicationPage() {
   const router = useRouter();
   const { toast } = useToast();
   const createApplicationMutation = useCreateApplication();
+  const createDocumentMutation = useCreateDocument();
 
   const [formData, setFormData] = useState<CreateApplicationData>({
     company: "",
@@ -46,6 +51,15 @@ export default function NewApplicationPage() {
   });
 
   const [nextDateCalendar, setNextDateCalendar] = useState<Date>();
+
+  // File upload state
+  const [selectedFiles, setSelectedFiles] = useState<
+    Array<{
+      file: File;
+      name: string;
+      type: "cv" | "cover-letter" | "portfolio" | "other";
+    }>
+  >([]);
 
   const handleInputChange = (
     field: keyof CreateApplicationData,
@@ -62,6 +76,36 @@ export default function NewApplicationPage() {
     }));
   };
 
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files) return;
+
+    const newFiles = Array.from(files).map((file) => ({
+      file,
+      name: file.name,
+      type: "other" as const,
+    }));
+
+    setSelectedFiles((prev) => [...prev, ...newFiles]);
+
+    // Reset the input
+    event.target.value = "";
+  };
+
+  const updateFileMetadata = (
+    index: number,
+    field: "name" | "type",
+    value: string
+  ) => {
+    setSelectedFiles((prev) =>
+      prev.map((item, i) => (i === index ? { ...item, [field]: value } : item))
+    );
+  };
+
+  const removeFile = (index: number) => {
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -74,11 +118,59 @@ export default function NewApplicationPage() {
     ) as CreateApplicationData;
 
     createApplicationMutation.mutate(cleanedData, {
-      onSuccess: () => {
-        toast({
-          title: "Application logged successfully",
-          description: "Your application has been cast into the void.",
-        });
+      onSuccess: async (applicationResponse) => {
+        const newApplicationId = applicationResponse.data?.id;
+
+        if (!newApplicationId) {
+          toast({
+            title: "Application logged successfully",
+            description: "Your application has been cast into the void.",
+          });
+          router.push("/applications");
+          return;
+        }
+
+        // Upload files if any were selected
+        if (selectedFiles.length > 0) {
+          toast({
+            title: "Application created",
+            description: `Uploading ${selectedFiles.length} document(s)...`,
+          });
+
+          try {
+            // Upload all files
+            await Promise.all(
+              selectedFiles.map((fileItem) => {
+                const documentData: CreateDocumentData = {
+                  file: fileItem.file,
+                  name: fileItem.name,
+                  type: fileItem.type,
+                  applicationId: newApplicationId,
+                };
+                return createDocumentMutation.mutateAsync(documentData);
+              })
+            );
+
+            toast({
+              title: "Success",
+              description:
+                "Application and documents have been cast into the void.",
+            });
+          } catch (error) {
+            toast({
+              title: "Application created, but document upload failed",
+              description:
+                "You can upload documents later from the application details page.",
+              variant: "destructive",
+            });
+          }
+        } else {
+          toast({
+            title: "Application logged successfully",
+            description: "Your application has been cast into the void.",
+          });
+        }
+
         router.push("/applications");
       },
       onError: (error) => {
@@ -313,28 +405,118 @@ export default function NewApplicationPage() {
               </p>
             </div>
 
-            {/* File Upload Section - Currently disabled pending documents integration */}
-            <div className="space-y-2">
+            {/* File Upload Section */}
+            <div className="space-y-4">
               <Label className="text-gray-300 font-mono">Documents</Label>
+
+              {/* File Selection */}
               <div className="border-2 border-dashed border-gray-700 rounded-lg p-6 text-center">
                 <FileText className="h-12 w-12 text-gray-600 mx-auto mb-4" />
                 <p className="text-gray-400 font-mono text-sm mb-2">
-                  Document upload will be available after Phase 3 migration
+                  Upload CV, cover letter, or other documents
                 </p>
-                <p className="text-gray-500 font-mono text-xs">
-                  CV/Resume, cover letter, portfolio links
+                <p className="text-gray-500 font-mono text-xs mb-4">
+                  PDF, DOC, DOCX, TXT, images (max 50MB each)
                 </p>
+                <input
+                  id="file-upload"
+                  type="file"
+                  multiple
+                  accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.gif,.zip"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  disabled
-                  className="mt-4 border-gray-700 text-gray-500"
+                  onClick={() =>
+                    document.getElementById("file-upload")?.click()
+                  }
+                  className="border-gray-700 text-gray-300 hover:bg-gray-800"
                 >
                   <Upload className="h-4 w-4 mr-2" />
-                  Upload Files (Coming Soon)
+                  Select Files
                 </Button>
               </div>
+
+              {/* Selected Files List */}
+              {selectedFiles.length > 0 && (
+                <div className="space-y-3">
+                  <Label className="text-gray-400 font-mono text-sm">
+                    Selected Files ({selectedFiles.length})
+                  </Label>
+                  {selectedFiles.map((fileItem, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center gap-3 p-3 bg-gray-900/50 rounded-lg border border-gray-700"
+                    >
+                      <FileText className="h-5 w-5 text-gray-400 flex-shrink-0" />
+
+                      <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2">
+                        <Input
+                          value={fileItem.name}
+                          onChange={(e) =>
+                            updateFileMetadata(index, "name", e.target.value)
+                          }
+                          className="bg-black border-gray-700 text-white text-sm"
+                          placeholder="Document name"
+                        />
+                        <Select
+                          value={fileItem.type}
+                          onValueChange={(value) =>
+                            updateFileMetadata(index, "type", value)
+                          }
+                        >
+                          <SelectTrigger className="bg-black border-gray-700 text-white text-sm">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-black border-gray-700">
+                            <SelectItem
+                              value="cv"
+                              className="text-white hover:bg-gray-800"
+                            >
+                              CV/Resume
+                            </SelectItem>
+                            <SelectItem
+                              value="cover-letter"
+                              className="text-white hover:bg-gray-800"
+                            >
+                              Cover Letter
+                            </SelectItem>
+                            <SelectItem
+                              value="portfolio"
+                              className="text-white hover:bg-gray-800"
+                            >
+                              Portfolio
+                            </SelectItem>
+                            <SelectItem
+                              value="other"
+                              className="text-white hover:bg-gray-800"
+                            >
+                              Other
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="text-xs text-gray-500 font-mono">
+                        {(fileItem.file.size / 1024 / 1024).toFixed(1)}MB
+                      </div>
+
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeFile(index)}
+                        className="text-gray-400 hover:text-red-400 hover:bg-red-900/20"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Form Actions */}
