@@ -2,13 +2,14 @@
 
 import type React from "react";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   SettingsIcon,
   Download,
@@ -16,9 +17,19 @@ import {
   Trash2,
   AlertTriangle,
   Save,
+  Loader2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ConfirmationModal } from "@/components/confirmation-modal";
+import {
+  useSettings,
+  useUpdateSettings,
+  useExportData,
+} from "@/hooks/use-settings";
+import {
+  useExportApplicationsJson,
+  useExportApplicationsCsv,
+} from "@/hooks/use-applications";
 
 interface Settings {
   notifications: boolean;
@@ -30,179 +41,199 @@ interface Settings {
 }
 
 export default function SettingsPage() {
-  const [settings, setSettings] = useState<Settings>({
-    notifications: true,
-    autoSync: false,
-    darkMode: true,
-    emailReminders: true,
-    exportFormat: "json",
-    dataRetention: 365,
-  });
-  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const [showClearDataModal, setShowClearDataModal] = useState(false);
 
-  useEffect(() => {
-    // Load settings from localStorage
-    const stored = localStorage.getItem("void-settings");
-    if (stored) {
-      setSettings(JSON.parse(stored));
-    }
-  }, []);
+  // Use settings hooks
+  const { data: settings, isLoading, error, refetch } = useSettings();
+  const updateSettingsMutation = useUpdateSettings();
+  const exportJsonMutation = useExportApplicationsJson();
+  const exportCsvMutation = useExportApplicationsCsv();
 
-  const handleSaveSettings = async () => {
-    setIsLoading(true);
-    try {
-      localStorage.setItem("void-settings", JSON.stringify(settings));
-      toast({
-        title: "Settings saved",
-        description: "Configuration committed to the void.",
+  // Local state for form updates (with proper defaults)
+  const [localSettings, setLocalSettings] = useState<Settings>(() => ({
+    notifications: settings?.notifications ?? true,
+    autoSync: settings?.autoSync ?? false,
+    darkMode: settings?.darkMode ?? true,
+    emailReminders: settings?.emailReminders ?? true,
+    exportFormat: settings?.exportFormat ?? "json",
+    dataRetention: settings?.dataRetention ?? 365,
+  }));
+
+  // Update local settings when data is loaded
+  useEffect(() => {
+    if (settings) {
+      setLocalSettings({
+        notifications: settings.notifications,
+        autoSync: settings.autoSync,
+        darkMode: settings.darkMode,
+        emailReminders: settings.emailReminders,
+        exportFormat: settings.exportFormat,
+        dataRetention: settings.dataRetention,
       });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to save settings.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
     }
+  }, [settings]);
+
+  // Check if settings have changed from original
+  const hasChanges = useMemo(() => {
+    if (!settings) return false;
+
+    return (
+      localSettings.notifications !== settings.notifications ||
+      localSettings.autoSync !== settings.autoSync ||
+      localSettings.darkMode !== settings.darkMode ||
+      localSettings.emailReminders !== settings.emailReminders ||
+      localSettings.exportFormat !== settings.exportFormat ||
+      localSettings.dataRetention !== settings.dataRetention
+    );
+  }, [localSettings, settings]);
+
+  const handleSaveSettings = () => {
+    updateSettingsMutation.mutate(localSettings);
   };
 
   const handleExportData = () => {
-    const applications = localStorage.getItem("void-applications");
-    const documents = localStorage.getItem("void-documents");
-
-    const data = {
-      applications: applications ? JSON.parse(applications) : [],
-      documents: documents ? JSON.parse(documents) : [],
-      exportDate: new Date().toISOString(),
-      version: "1.0",
-    };
-
-    if (settings.exportFormat === "json") {
-      const blob = new Blob([JSON.stringify(data, null, 2)], {
-        type: "application/json",
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `void-export-${new Date().toISOString().split("T")[0]}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
+    if (localSettings.exportFormat === "json") {
+      exportJsonMutation.mutate({});
     } else {
-      // CSV export for applications
-      const apps = data.applications;
-      if (apps.length === 0) {
-        toast({
-          title: "No data to export",
-          description: "The void is empty.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const headers = [
-        "Company",
-        "Position",
-        "Status",
-        "Applied Date",
-        "Next Date",
-        "CV Version",
-        "Notes",
-      ];
-      const csvContent = [
-        headers.join(","),
-        ...apps.map((app: any) =>
-          [
-            app.company,
-            app.position,
-            app.status,
-            app.appliedDate,
-            app.nextDate || "",
-            app.cvVersion || "",
-            (app.notes || "").replace(/,/g, ";"),
-          ].join(",")
-        ),
-      ].join("\n");
-
-      const blob = new Blob([csvContent], { type: "text/csv" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `void-applications-${new Date().toISOString().split("T")[0]}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
+      exportCsvMutation.mutate({});
     }
-
-    toast({
-      title: "Data exported",
-      description: "Your data has been extracted from the void.",
-    });
   };
 
   const handleImportData = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const content = e.target?.result as string;
-        const data = JSON.parse(content);
-
-        if (data.applications) {
-          localStorage.setItem(
-            "void-applications",
-            JSON.stringify(data.applications)
-          );
-        }
-        if (data.documents) {
-          localStorage.setItem(
-            "void-documents",
-            JSON.stringify(data.documents)
-          );
-        }
-
-        toast({
-          title: "Data imported",
-          description: "Your data has been cast into the void.",
-        });
-
-        // Refresh the page to reflect imported data
-        window.location.reload();
-      } catch (error) {
-        toast({
-          title: "Import failed",
-          description: "The void rejected your data offering.",
-          variant: "destructive",
-        });
-      }
-    };
-    reader.readAsText(file);
+    // Data import functionality requires backend implementation for database
+    toast({
+      title: "Feature not implemented",
+      description: "Database data import requires backend implementation.",
+      variant: "destructive",
+    });
 
     // Reset file input
     event.target.value = "";
   };
 
-  const handleClearAllData = () => {
-    localStorage.removeItem("void-applications");
-    localStorage.removeItem("void-documents");
-    localStorage.removeItem("void-settings");
-
-    toast({
-      title: "All data cleared",
-      description: "The void has consumed everything. You are free.",
-    });
-
+  const handleClearAllData = async () => {
+    try {
+      // Note: This will need a separate API endpoint to clear all user data
+      // For now, we'll show a message that this feature requires backend implementation
+      toast({
+        title: "Feature not implemented",
+        description: "Database data clearing requires backend implementation.",
+        variant: "destructive",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to clear data.",
+        variant: "destructive",
+      });
+    }
     setShowClearDataModal(false);
-    // Refresh the page
-    window.location.reload();
   };
 
   const updateSetting = (key: keyof Settings, value: any) => {
-    setSettings((prev) => ({ ...prev, [key]: value }));
+    setLocalSettings((prev) => ({ ...prev, [key]: value }));
   };
+
+  // Loading skeleton
+  if (isLoading) {
+    return (
+      <div className="flex-1 space-y-6 p-6">
+        <div className="flex items-center gap-4">
+          <SidebarTrigger />
+          <div>
+            <Skeleton className="h-8 w-24 mb-2 bg-gray-800" />
+            <Skeleton className="h-4 w-48 bg-gray-800" />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card className="void-card">
+            <CardHeader>
+              <Skeleton className="h-6 w-32 bg-gray-800" />
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <Skeleton className="h-4 w-24 bg-gray-800" />
+                    <Skeleton className="h-3 w-40 bg-gray-800" />
+                  </div>
+                  <Skeleton className="h-6 w-11 bg-gray-800 rounded-full" />
+                </div>
+              ))}
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-32 bg-gray-800" />
+                <Skeleton className="h-10 w-full bg-gray-800" />
+              </div>
+              <Skeleton className="h-10 w-full bg-gray-800" />
+            </CardContent>
+          </Card>
+
+          <Card className="void-card">
+            <CardHeader>
+              <Skeleton className="h-6 w-32 bg-gray-800" />
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-24 bg-gray-800" />
+                <Skeleton className="h-10 w-full bg-gray-800" />
+              </div>
+              <div className="space-y-3">
+                <Skeleton className="h-10 w-full bg-gray-800" />
+                <Skeleton className="h-10 w-full bg-gray-800" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card className="void-card border-red-700">
+          <CardHeader>
+            <Skeleton className="h-6 w-24 bg-gray-800" />
+          </CardHeader>
+          <CardContent>
+            <div className="p-4 rounded border border-red-700 bg-red-900/10">
+              <Skeleton className="h-6 w-32 mb-2 bg-gray-800" />
+              <Skeleton className="h-16 w-full mb-4 bg-gray-800" />
+              <Skeleton className="h-10 w-32 bg-gray-800" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="flex-1 space-y-6 p-6">
+        <div className="flex items-center gap-4">
+          <SidebarTrigger />
+          <div>
+            <h1 className="font-mono text-3xl font-medium text-white">
+              Settings
+            </h1>
+            <p className="text-gray-400 font-mono text-sm">
+              Error loading settings from the void.
+            </p>
+          </div>
+        </div>
+
+        <Card className="void-card">
+          <CardContent className="p-6 text-center">
+            <AlertTriangle className="h-12 w-12 text-red-400 mx-auto mb-4" />
+            <p className="text-red-400 mb-4 font-mono">
+              Failed to load settings:{" "}
+              {error instanceof Error ? error.message : "Unknown error"}
+            </p>
+            <Button onClick={() => refetch()} variant="outline">
+              Try Again
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 space-y-6 p-6">
@@ -236,7 +267,7 @@ export default function SettingsPage() {
                 </p>
               </div>
               <Switch
-                checked={settings.notifications}
+                checked={localSettings.notifications}
                 onCheckedChange={(checked) =>
                   updateSetting("notifications", checked)
                 }
@@ -253,7 +284,7 @@ export default function SettingsPage() {
                 </p>
               </div>
               <Switch
-                checked={settings.autoSync}
+                checked={localSettings.autoSync}
                 onCheckedChange={(checked) =>
                   updateSetting("autoSync", checked)
                 }
@@ -270,7 +301,7 @@ export default function SettingsPage() {
                 </p>
               </div>
               <Switch
-                checked={settings.emailReminders}
+                checked={localSettings.emailReminders}
                 onCheckedChange={(checked) =>
                   updateSetting("emailReminders", checked)
                 }
@@ -283,7 +314,7 @@ export default function SettingsPage() {
               </Label>
               <Input
                 type="number"
-                value={settings.dataRetention}
+                value={localSettings.dataRetention}
                 onChange={(e) =>
                   updateSetting(
                     "dataRetention",
@@ -301,11 +332,15 @@ export default function SettingsPage() {
 
             <Button
               onClick={handleSaveSettings}
-              disabled={isLoading}
-              className="w-full bg-[#00F57A] text-black hover:bg-[#00F57A]/90"
+              disabled={updateSettingsMutation.isPending || !hasChanges}
+              className="w-full bg-[#00F57A] text-black hover:bg-[#00F57A]/90 disabled:opacity-50"
             >
-              <Save className="h-4 w-4 mr-2" />
-              {isLoading ? "Saving..." : "Save Settings"}
+              {updateSettingsMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4 mr-2" />
+              )}
+              {updateSettingsMutation.isPending ? "Saving..." : "Save Changes"}
             </Button>
           </CardContent>
         </Card>
@@ -321,7 +356,7 @@ export default function SettingsPage() {
             <div className="space-y-2">
               <Label className="text-gray-300 font-mono">Export Format</Label>
               <select
-                value={settings.exportFormat}
+                value={localSettings.exportFormat}
                 onChange={(e) => updateSetting("exportFormat", e.target.value)}
                 className="w-full px-3 py-2 bg-black border border-gray-700 rounded-md text-white font-mono text-sm"
               >
