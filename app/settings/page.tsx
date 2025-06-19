@@ -389,9 +389,10 @@ export default function SettingsPage() {
                   }
                   variant="outline"
                   className="w-full border-gray-700 text-gray-300 hover:bg-gray-800"
+                  disabled
                 >
                   <Upload className="h-4 w-4 mr-2" />
-                  Import Data
+                  Import Data (Coming Soon)
                 </Button>
               </div>
             </div>
@@ -410,7 +411,7 @@ export default function SettingsPage() {
         <CardContent className="space-y-4">
           <div className="p-4 rounded border border-red-700 bg-red-900/10">
             <h4 className="font-mono text-red-400 font-medium mb-2">
-              Clear All Data
+              Clear All Data (Coming Soon)
             </h4>
             <p className="text-red-300 text-sm mb-4 font-mono">
               This will permanently delete all applications, documents, and
@@ -421,9 +422,10 @@ export default function SettingsPage() {
               onClick={() => setShowClearDataModal(true)}
               variant="outline"
               className="border-red-700 text-red-400 hover:bg-red-900/20"
+              disabled
             >
               <Trash2 className="h-4 w-4 mr-2" />
-              Clear All Data
+              Clear All Data (Coming Soon)
             </Button>
           </div>
         </CardContent>
