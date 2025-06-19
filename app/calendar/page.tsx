@@ -46,7 +46,6 @@ export default function CalendarPage() {
     error,
     refetch,
   } = useApplications();
-  const applications = applicationsData?.applications || [];
 
   useEffect(() => {
     // Process events when applications data changes
