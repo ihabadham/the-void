@@ -339,23 +339,58 @@ export function useDeleteApplication() {
   });
 }
 
-// Hook to export applications
-export function useExportApplications() {
+// Hook to export applications as JSON
+export function useExportApplicationsJson() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: ({
-      format,
-      params,
-    }: {
-      format: "json" | "csv";
-      params?: ApplicationsQueryParams;
-    }) => applicationsApi.exportApplications(format, params),
+    mutationFn: (params?: ApplicationsQueryParams) =>
+      applicationsApi.exportApplicationsJson(params),
 
-    onSuccess: (response, { format }) => {
+    onSuccess: (response) => {
       toast({
         title: "Export successful",
-        description: `Applications exported as ${format.toUpperCase()}`,
+        description: `${response.data?.totalApplications || 0} applications exported as JSON`,
+      });
+    },
+
+    onError: (error) => {
+      const errorMessage =
+        error instanceof ApiError
+          ? error.message
+          : "Failed to export applications";
+
+      toast({
+        title: "Export failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    },
+  });
+}
+
+// Hook to export applications as CSV with automatic download
+export function useExportApplicationsCsv() {
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: (params?: ApplicationsQueryParams) =>
+      applicationsApi.exportApplicationsCsv(params),
+
+    onSuccess: (response) => {
+      // Automatically trigger download
+      const url = URL.createObjectURL(response.blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = response.filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: "Export successful",
+        description: `Applications exported as CSV: ${response.filename}`,
       });
     },
 

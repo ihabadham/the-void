@@ -12,6 +12,21 @@ export interface ApiResponse<T> {
   };
 }
 
+// Export-specific response types
+export interface ApplicationsExportData {
+  exportDate: string;
+  totalApplications: number;
+  applications: Application[];
+}
+
+export interface ExportJsonResponse
+  extends ApiResponse<ApplicationsExportData> {}
+
+export interface ExportCsvResponse {
+  blob: Blob;
+  filename: string;
+}
+
 export interface Application {
   id: string;
   company: string;
@@ -226,12 +241,11 @@ export const applicationsApi = {
     });
   },
 
-  // Export applications
-  exportApplications: async (
-    format: "json" | "csv" = "json",
+  // Export applications as JSON
+  exportApplicationsJson: async (
     params: ApplicationsQueryParams = {}
-  ): Promise<ApiResponse<any>> => {
-    const searchParams = new URLSearchParams({ format });
+  ): Promise<ExportJsonResponse> => {
+    const searchParams = new URLSearchParams({ format: "json" });
 
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined && value !== "") {
@@ -239,7 +253,53 @@ export const applicationsApi = {
       }
     });
 
-    return fetchApi<any>(`/api/applications/export?${searchParams.toString()}`);
+    return fetchApi<ApplicationsExportData>(
+      `/api/applications/export?${searchParams.toString()}`
+    );
+  },
+
+  // Export applications as CSV with proper file handling
+  exportApplicationsCsv: async (
+    params: ApplicationsQueryParams = {}
+  ): Promise<ExportCsvResponse> => {
+    const searchParams = new URLSearchParams({ format: "csv" });
+
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== "") {
+        searchParams.append(key, String(value));
+      }
+    });
+
+    const endpoint = `/api/applications/export?${searchParams.toString()}`;
+    const url = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+
+    try {
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new ApiError(
+          errorData.error || `HTTP ${response.status}`,
+          response.status,
+          response
+        );
+      }
+
+      const blob = await response.blob();
+      const contentDisposition = response.headers.get("content-disposition");
+      const filename =
+        contentDisposition?.match(/filename="([^"]+)"/)?.[1] ||
+        `applications-${new Date().toISOString().split("T")[0]}.csv`;
+
+      return { blob, filename };
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      throw new ApiError(
+        error instanceof Error ? error.message : "Network error occurred"
+      );
+    }
   },
 
   // Get documents for a specific application
