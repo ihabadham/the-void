@@ -415,3 +415,47 @@ export const documentsApi = {
     return `/api/documents/${id}/download${queryString ? `?${queryString}` : ""}`;
   },
 };
+
+// Settings API client
+export const settingsApi = {
+  // Get user settings
+  getSettings: async (): Promise<ApiResponse<UserSettings>> => {
+    return fetchApi<UserSettings>("/api/settings");
+  },
+
+  // Update user settings
+  updateSettings: async (
+    data: Partial<UserSettings>
+  ): Promise<ApiResponse<UserSettings>> => {
+    return fetchApi<UserSettings>("/api/settings", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Export all user data (applications + documents)
+  exportData: async (): Promise<
+    ApiResponse<{
+      applications: Application[];
+      documents: Document[];
+      exportDate: string;
+      version: string;
+    }>
+  > => {
+    return fetchApi("/api/settings/export");
+  },
+};
+
+// Add UserSettings interface
+export interface UserSettings {
+  id?: string;
+  userId: string;
+  notifications: boolean;
+  autoSync: boolean;
+  darkMode: boolean;
+  emailReminders: boolean;
+  exportFormat: "json" | "csv";
+  dataRetention: number;
+  createdAt: string;
+  updatedAt: string;
+}
