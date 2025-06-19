@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createServiceRoleClient } from "@/lib/supabase/server";
 
 /**
  * Document storage utilities for Supabase storage
@@ -85,7 +85,8 @@ export async function uploadDocument(
     // Validate file
     validateFile(file);
 
-    const supabase = await createClient();
+    // Use service role client to bypass RLS policies
+    const supabase = createServiceRoleClient();
 
     // Generate file path
     const filePath = generateDocumentPath(
@@ -137,7 +138,8 @@ export async function getSignedDocumentUrl(
   expiresIn: number = 3600 // 1 hour default
 ): Promise<string> {
   try {
-    const supabase = await createClient();
+    // Use service role client to bypass RLS policies
+    const supabase = createServiceRoleClient();
 
     const { data, error } = await supabase.storage
       .from(DOCUMENTS_BUCKET)
@@ -162,7 +164,8 @@ export async function getSignedDocumentUrl(
  */
 export async function deleteDocumentFile(filePath: string): Promise<void> {
   try {
-    const supabase = await createClient();
+    // Use service role client to bypass RLS policies
+    const supabase = createServiceRoleClient();
 
     const { error } = await supabase.storage
       .from(DOCUMENTS_BUCKET)
@@ -188,7 +191,8 @@ export async function downloadDocument(filePath: string): Promise<{
   contentType?: string;
 }> {
   try {
-    const supabase = await createClient();
+    // Use service role client to bypass RLS policies
+    const supabase = createServiceRoleClient();
 
     const { data, error } = await supabase.storage
       .from(DOCUMENTS_BUCKET)
