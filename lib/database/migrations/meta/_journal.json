@@ -29,6 +29,13 @@
       "when": 1750042315314,
       "tag": "0003_mysterious_omega_sentinel",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1750405750249,
+      "tag": "0004_groovy_vengeance",
+      "breakpoints": true
     }
   ]
 }
