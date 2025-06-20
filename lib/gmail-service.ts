@@ -502,9 +502,9 @@ export class GmailService {
       }
 
       return this.fetchMessagesInBatches(response.data.messages);
-    } catch (error) {
-      console.error("Failed to search emails:", error);
-      throw new Error("Failed to search emails");
+    } catch (err) {
+      console.error("Failed to search emails:", err);
+      throw err; // preserve GaxiosError for downstream handling
     }
   }
 }

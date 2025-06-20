@@ -7,6 +7,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { Toaster } from "@/components/ui/toaster";
 import { Providers } from "@/components/session-provider";
 import { AuthWrapper } from "@/components/auth-wrapper";
+import { QueryProvider } from "@/components/query-provider";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -25,14 +26,16 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className={inter.className}>
-        <Providers>
-          <AuthWrapper>
-            <SidebarProvider defaultOpen={true}>
-              <AppSidebar />
-              <main className="flex-1 bg-black min-h-screen">{children}</main>
-            </SidebarProvider>
-          </AuthWrapper>
-        </Providers>
+        <QueryProvider>
+          <Providers>
+            <AuthWrapper>
+              <SidebarProvider defaultOpen={true}>
+                <AppSidebar />
+                <main className="flex-1 bg-black min-h-screen">{children}</main>
+              </SidebarProvider>
+            </AuthWrapper>
+          </Providers>
+        </QueryProvider>
         <Toaster />
       </body>
     </html>

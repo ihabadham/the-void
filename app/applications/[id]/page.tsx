@@ -2,7 +2,7 @@
 
 import React from "react";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,59 +10,40 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   ArrowLeft,
   Save,
   ExternalLink,
   Trash2,
-  Upload,
-  X,
   FileText,
+  AlertCircle,
+  Loader2,
+  Upload,
   Eye,
   Download,
+  Plus,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { ConfirmationModal } from "@/components/confirmation-modal";
-
-interface Application {
-  id: string;
-  company: string;
-  position: string;
-  status:
-    | "applied"
-    | "assessment"
-    | "interview"
-    | "offer"
-    | "rejected"
-    | "withdrawn";
-  appliedDate: string;
-  nextDate?: string;
-  nextEvent?: string;
-  cvVersion?: string;
-  notes?: string;
-  jobUrl?: string;
-}
-
-interface AttachedFile {
-  id: string;
-  name: string;
-  size: number;
-  type: string;
-  url: string;
-}
-
-interface Document {
-  id: string;
-  name: string;
-  type: "cv" | "cover-letter" | "portfolio" | "other";
-  uploadDate: string;
-  size: number;
-  url?: string;
-  applicationId: string;
-  applicationCompany: string;
-}
+import {
+  useApplication,
+  useUpdateApplication,
+  useDeleteApplication,
+} from "@/hooks/use-applications";
+import {
+  useApplicationDocuments,
+  useCreateDocument,
+  useDeleteDocument,
+  useDocumentDownload,
+} from "@/hooks/use-documents";
+import type {
+  CreateApplicationData,
+  CreateDocumentData,
+  Document,
+} from "@/lib/api-client";
 
 const statusColors = {
   applied: "bg-blue-500",
@@ -86,13 +67,15 @@ export default function ApplicationDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = React.use(params);
-  const [application, setApplication] = useState<Application | null>(null);
-  const [documents, setDocuments] = useState<Document[]>([]);
   const [isEditing, setIsEditing] = useState(false);
-  const [formData, setFormData] = useState<Partial<Application>>({});
-  const [newFiles, setNewFiles] = useState<AttachedFile[]>([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formData, setFormData] = useState<Partial<CreateApplicationData>>({});
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showUploadForm, setShowUploadForm] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadData, setUploadData] = useState({
+    name: "",
+    type: "other" as Document["type"],
+  });
   const [deleteDocModal, setDeleteDocModal] = useState<{
     isOpen: boolean;
     documentId: string;
@@ -105,53 +88,34 @@ export default function ApplicationDetailPage({
   const router = useRouter();
   const { toast } = useToast();
 
-  useEffect(() => {
-    // Load application from localStorage
-    const stored = localStorage.getItem("void-applications");
-    if (stored) {
-      const applications = JSON.parse(stored);
-      const app = applications.find((a: Application) => a.id === id);
-      if (app) {
-        setApplication(app);
-        setFormData(app);
-      } else {
-        router.push("/applications");
-      }
+  // TanStack Query hooks
+  const { data: application, isLoading, error, isError } = useApplication(id);
+
+  const { data: documents = [], isLoading: documentsLoading } =
+    useApplicationDocuments(id);
+
+  const updateMutation = useUpdateApplication();
+  const deleteMutation = useDeleteApplication();
+  const createDocumentMutation = useCreateDocument();
+  const deleteDocumentMutation = useDeleteDocument();
+  const { getDownloadUrl } = useDocumentDownload();
+
+  // Initialize form data when application data loads
+  React.useEffect(() => {
+    if (application && !isEditing) {
+      setFormData({
+        company: application.company,
+        position: application.position,
+        status: application.status,
+        appliedDate: application.appliedDate,
+        nextDate: application.nextDate || "",
+        nextEvent: application.nextEvent || "",
+        cvVersion: application.cvVersion || "",
+        notes: application.notes || "",
+        jobUrl: application.jobUrl || "",
+      });
     }
-
-    // Load documents for this application
-    const storedDocs = localStorage.getItem("void-documents");
-    if (storedDocs) {
-      const allDocs = JSON.parse(storedDocs);
-      const appDocs = allDocs.filter(
-        (doc: Document) => doc.applicationId === id
-      );
-      setDocuments(appDocs);
-    }
-  }, [id, router]);
-
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (!files) return;
-
-    Array.from(files).forEach((file) => {
-      const newFile: AttachedFile = {
-        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        url: URL.createObjectURL(file),
-      };
-      setNewFiles((prev) => [...prev, newFile]);
-    });
-
-    // Reset file input
-    event.target.value = "";
-  };
-
-  const removeNewFile = (fileId: string) => {
-    setNewFiles((prev) => prev.filter((file) => file.id !== fileId));
-  };
+  }, [application, isEditing]);
 
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return "0 Bytes";
@@ -163,156 +127,195 @@ export default function ApplicationDetailPage({
     );
   };
 
+  const getDocumentTypeFromFile = (file: File): Document["type"] => {
+    const name = file.name.toLowerCase();
+    if (name.includes("cv") || name.includes("resume")) return "cv";
+    if (name.includes("cover")) return "cover-letter";
+    if (name.includes("portfolio")) return "portfolio";
+    return "other";
+  };
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setSelectedFile(file);
+    setUploadData((prev) => ({
+      ...prev,
+      name: prev.name || file.name, // Use existing name or default to filename
+      type: getDocumentTypeFromFile(file),
+    }));
+  };
+
+  const handleDocumentUpload = async () => {
+    if (!selectedFile || !uploadData.name.trim()) {
+      toast({
+        title: "Missing information",
+        description: "Please select a file and provide a name.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const uploadPayload: CreateDocumentData = {
+      file: selectedFile,
+      name: uploadData.name.trim(),
+      type: uploadData.type,
+      applicationId: id,
+    };
+
+    try {
+      await createDocumentMutation.mutateAsync(uploadPayload);
+
+      // Reset form
+      setSelectedFile(null);
+      setUploadData({ name: "", type: "other" });
+      setShowUploadForm(false);
+
+      // Reset file input
+      const fileInput = document.getElementById(
+        "document-upload"
+      ) as HTMLInputElement;
+      if (fileInput) fileInput.value = "";
+    } catch (error) {
+      // Error handling is done in the mutation hook
+    }
+  };
+
   const handleSave = async () => {
     if (!application) return;
 
-    setIsSubmitting(true);
     try {
-      // Update application
-      const stored = localStorage.getItem("void-applications");
-      if (stored) {
-        const applications = JSON.parse(stored);
-        const index = applications.findIndex((a: Application) => a.id === id);
-        if (index !== -1) {
-          applications[index] = { ...application, ...formData };
-          localStorage.setItem(
-            "void-applications",
-            JSON.stringify(applications)
-          );
-          setApplication(applications[index]);
-
-          // Save new files as documents
-          if (newFiles.length > 0) {
-            const existingDocuments = localStorage.getItem("void-documents");
-            const documents = existingDocuments
-              ? JSON.parse(existingDocuments)
-              : [];
-
-            const newDocuments: Document[] = newFiles.map((file) => ({
-              id: file.id,
-              name: file.name,
-              type: (file.name.toLowerCase().includes("cv") ||
-              file.name.toLowerCase().includes("resume")
-                ? "cv"
-                : "other") as "cv" | "cover-letter" | "portfolio" | "other",
-              uploadDate: new Date().toISOString(),
-              size: file.size,
-              url: file.url,
-              applicationId: id,
-              applicationCompany: applications[index].company,
-            }));
-
-            documents.push(...newDocuments);
-            localStorage.setItem("void-documents", JSON.stringify(documents));
-
-            // Update local documents state
-            setDocuments((prev) => [...prev, ...newDocuments]);
-            setNewFiles([]);
-          }
-
-          setIsEditing(false);
-          toast({
-            title: "Application updated",
-            description: `Changes committed to the void${newFiles.length > 0 ? ` with ${newFiles.length} new attachment(s)` : ""}.`,
-          });
-        }
-      }
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to update application.",
-        variant: "destructive",
+      await updateMutation.mutateAsync({
+        id: application.id,
+        data: {
+          ...formData,
+          // Clean up empty strings to undefined
+          nextDate: formData.nextDate?.trim() || undefined,
+          nextEvent: formData.nextEvent?.trim() || undefined,
+          cvVersion: formData.cvVersion?.trim() || undefined,
+          notes: formData.notes?.trim() || undefined,
+          jobUrl: formData.jobUrl?.trim() || undefined,
+        },
       });
-    } finally {
-      setIsSubmitting(false);
+
+      setIsEditing(false);
+    } catch (error) {
+      // Error handling is done in the mutation hook
     }
   };
 
   const handleDelete = async () => {
+    if (!application) return;
+
     try {
-      const stored = localStorage.getItem("void-applications");
-      if (stored) {
-        const applications = JSON.parse(stored);
-        const filtered = applications.filter((a: Application) => a.id !== id);
-        localStorage.setItem("void-applications", JSON.stringify(filtered));
-
-        // Remove associated documents
-        const storedDocuments = localStorage.getItem("void-documents");
-        if (storedDocuments) {
-          const documents = JSON.parse(storedDocuments);
-          const filteredDocuments = documents.filter(
-            (doc: any) => doc.applicationId !== id
-          );
-          localStorage.setItem(
-            "void-documents",
-            JSON.stringify(filteredDocuments)
-          );
-        }
-
-        toast({
-          title: "Application deleted",
-          description: "Record consumed by the void.",
-        });
-        setShowDeleteModal(false);
-        router.push("/applications");
-      }
+      await deleteMutation.mutateAsync(application.id);
+      setShowDeleteModal(false);
+      router.push("/applications");
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to delete application.",
-        variant: "destructive",
-      });
+      // Error handling is done in the mutation hook
     }
   };
 
-  const handleDeleteDocument = (docId: string) => {
-    const doc = documents.find((d) => d.id === docId);
-    if (!doc) return;
-
+  const handleDeleteDocument = (docId: string, docName: string) => {
     setDeleteDocModal({
       isOpen: true,
       documentId: docId,
-      documentName: doc.name,
+      documentName: docName,
     });
   };
 
-  const confirmDeleteDocument = () => {
-    const { documentId } = deleteDocModal;
-
-    // Remove from documents state
-    setDocuments((prev) => prev.filter((doc) => doc.id !== documentId));
-
-    // Remove from localStorage
-    const storedDocuments = localStorage.getItem("void-documents");
-    if (storedDocuments) {
-      const documents = JSON.parse(storedDocuments);
-      const filteredDocuments = documents.filter(
-        (doc: any) => doc.id !== documentId
-      );
-      localStorage.setItem("void-documents", JSON.stringify(filteredDocuments));
+  const confirmDeleteDocument = async () => {
+    try {
+      await deleteDocumentMutation.mutateAsync(deleteDocModal.documentId);
+      setDeleteDocModal({ isOpen: false, documentId: "", documentName: "" });
+    } catch (error) {
+      // Error handling is done in the mutation hook
     }
+  };
 
-    toast({
-      title: "Document deleted",
-      description: "File consumed by the void.",
-    });
+  const handleDownload = (doc: Document) => {
+    const downloadUrl = getDownloadUrl(doc.id, { inline: false });
+    window.open(downloadUrl, "_blank");
+  };
 
-    setDeleteDocModal({ isOpen: false, documentId: "", documentName: "" });
+  const handleView = (doc: Document) => {
+    const viewUrl = getDownloadUrl(doc.id, { inline: true });
+    window.open(viewUrl, "_blank");
   };
 
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  if (!application) {
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="flex-1 space-y-6 p-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <SidebarTrigger />
+            <Button
+              variant="outline"
+              size="sm"
+              asChild
+              className="border-gray-700 text-gray-300 hover:bg-gray-800"
+            >
+              <Link href="/applications">
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back
+              </Link>
+            </Button>
+            <div>
+              <Skeleton className="h-8 w-48 mb-2 bg-gray-800" />
+              <Skeleton className="h-4 w-32 bg-gray-800" />
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 space-y-6">
+            <Card className="void-card">
+              <CardHeader>
+                <Skeleton className="h-6 w-40 bg-gray-800" />
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-4">
+                  {[...Array(4)].map((_, i) => (
+                    <Skeleton key={i} className="h-10 w-full bg-gray-800" />
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+          <div className="space-y-6">
+            <Card className="void-card">
+              <CardHeader>
+                <Skeleton className="h-6 w-24 bg-gray-800" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-20 w-full bg-gray-800" />
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (isError || !application) {
     return (
       <div className="flex-1 flex items-center justify-center p-6">
         <div className="text-center">
+          <AlertCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
           <h2 className="font-mono text-xl text-white mb-2">
             Application Not Found
           </h2>
           <p className="text-gray-400 font-mono text-sm mb-4">
-            This application has been consumed by the void.
+            {error instanceof Error
+              ? error.message
+              : "This application has been consumed by the void."}
           </p>
           <Button
             asChild
@@ -383,17 +386,31 @@ export default function ApplicationDetailPage({
             <div className="flex gap-2">
               <Button
                 onClick={handleSave}
-                disabled={isSubmitting}
-                className="bg-[#00F57A] text-black hover:bg-[#00F57A]/90"
+                disabled={updateMutation.isPending}
+                className="bg-[#00F57A] text-black hover:bg-[#00F57A]/90 disabled:opacity-50"
               >
-                <Save className="h-4 w-4 mr-2" />
-                {isSubmitting ? "Saving..." : "Save"}
+                {updateMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4 mr-2" />
+                )}
+                {updateMutation.isPending ? "Saving..." : "Save"}
               </Button>
               <Button
                 onClick={() => {
                   setIsEditing(false);
-                  setFormData(application);
-                  setNewFiles([]);
+                  // Reset form data to current application values
+                  setFormData({
+                    company: application.company,
+                    position: application.position,
+                    status: application.status,
+                    appliedDate: application.appliedDate,
+                    nextDate: application.nextDate || "",
+                    nextEvent: application.nextEvent || "",
+                    cvVersion: application.cvVersion || "",
+                    notes: application.notes || "",
+                    jobUrl: application.jobUrl || "",
+                  });
                 }}
                 variant="outline"
                 className="border-gray-700 text-gray-300 hover:bg-gray-800"
@@ -512,78 +529,31 @@ export default function ApplicationDetailPage({
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label className="text-gray-300 font-mono">Job URL</Label>
-                    <Input
-                      type="url"
-                      value={formData.jobUrl || ""}
-                      onChange={(e) =>
-                        handleInputChange("jobUrl", e.target.value)
-                      }
-                      placeholder="https://..."
-                      className="bg-black border-gray-700 text-white placeholder:text-gray-500"
-                    />
-                  </div>
-
-                  {/* File Upload Section for Edit Mode */}
-                  <div className="space-y-2">
-                    <Label className="text-gray-300 font-mono">
-                      Add New Attachments
-                    </Label>
-                    <div className="space-y-3">
-                      <div>
-                        <input
-                          type="file"
-                          id="file-upload-edit"
-                          className="hidden"
-                          multiple
-                          accept=".pdf,.doc,.docx,.txt"
-                          onChange={handleFileUpload}
-                        />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() =>
-                            document.getElementById("file-upload-edit")?.click()
-                          }
-                          className="border-gray-700 text-gray-300 hover:bg-gray-800"
-                        >
-                          <Upload className="h-4 w-4 mr-2" />
-                          Attach Files (CV, Cover Letter, etc.)
-                        </Button>
-                      </div>
-
-                      {newFiles.length > 0 && (
-                        <div className="space-y-2">
-                          <p className="text-gray-400 text-sm font-mono">
-                            New files to be added:
-                          </p>
-                          {newFiles.map((file) => (
-                            <div
-                              key={file.id}
-                              className="flex items-center justify-between p-2 rounded border border-gray-700"
-                            >
-                              <div>
-                                <p className="text-white text-sm font-medium">
-                                  {file.name}
-                                </p>
-                                <p className="text-gray-400 text-xs font-mono">
-                                  {formatFileSize(file.size)}
-                                </p>
-                              </div>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() => removeNewFile(file.id)}
-                                className="border-red-700 text-red-400 hover:bg-red-900/20"
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-gray-300 font-mono">
+                        CV Version
+                      </Label>
+                      <Input
+                        value={formData.cvVersion || ""}
+                        onChange={(e) =>
+                          handleInputChange("cvVersion", e.target.value)
+                        }
+                        placeholder="e.g., Senior_Dev_v2.1"
+                        className="bg-black border-gray-700 text-white placeholder:text-gray-500"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-gray-300 font-mono">Job URL</Label>
+                      <Input
+                        type="url"
+                        value={formData.jobUrl || ""}
+                        onChange={(e) =>
+                          handleInputChange("jobUrl", e.target.value)
+                        }
+                        placeholder="https://..."
+                        className="bg-black border-gray-700 text-white placeholder:text-gray-500"
+                      />
                     </div>
                   </div>
                 </div>
@@ -656,18 +626,152 @@ export default function ApplicationDetailPage({
 
           {/* Attachments Section */}
           <Card className="void-card">
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="font-mono text-white">
                 Attachments ({documents.length})
               </CardTitle>
+              <Button
+                onClick={() => setShowUploadForm(true)}
+                size="sm"
+                className="bg-[#00F57A] text-black hover:bg-[#00F57A]/90"
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                Add
+              </Button>
             </CardHeader>
             <CardContent>
-              {documents.length === 0 ? (
-                <p className="text-gray-500 font-mono text-sm italic">
-                  No attachments. Files cast into the void remain elusive.
-                </p>
+              {/* Upload Form */}
+              {showUploadForm && (
+                <div className="mb-6 p-4 rounded border border-gray-700 bg-gray-900/50 space-y-4">
+                  <h4 className="font-mono text-white text-sm">
+                    Attach Document
+                  </h4>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-gray-300 font-mono text-sm">
+                        Select File
+                      </Label>
+                      <input
+                        type="file"
+                        id="document-upload"
+                        className="w-full px-3 py-2 bg-black border border-gray-700 rounded-md text-white font-mono text-xs file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:bg-[#00F57A] file:text-black file:text-xs"
+                        accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.gif,.zip"
+                        onChange={handleFileSelect}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-gray-300 font-mono text-sm">
+                        Document Type
+                      </Label>
+                      <select
+                        value={uploadData.type}
+                        onChange={(e) =>
+                          setUploadData((prev) => ({
+                            ...prev,
+                            type: e.target.value as Document["type"],
+                          }))
+                        }
+                        className="w-full px-3 py-2 bg-black border border-gray-700 rounded-md text-white font-mono text-xs"
+                      >
+                        <option value="cv">CV/Resume</option>
+                        <option value="cover-letter">Cover Letter</option>
+                        <option value="portfolio">Portfolio</option>
+                        <option value="other">Other</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-gray-300 font-mono text-sm">
+                      Document Name
+                    </Label>
+                    <Input
+                      value={uploadData.name}
+                      onChange={(e) =>
+                        setUploadData((prev) => ({
+                          ...prev,
+                          name: e.target.value,
+                        }))
+                      }
+                      placeholder="e.g., Senior_Developer_CV_v2.1"
+                      className="bg-black border-gray-700 text-white placeholder:text-gray-500 text-sm"
+                    />
+                  </div>
+
+                  {selectedFile && (
+                    <div className="p-2 rounded border border-gray-600 bg-gray-800/50">
+                      <div className="flex items-center gap-2">
+                        <FileText className="h-4 w-4 text-[#00F57A]" />
+                        <span className="text-white text-xs font-medium">
+                          {selectedFile.name}
+                        </span>
+                        <span className="text-gray-400 text-xs">
+                          ({formatFileSize(selectedFile.size)})
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={handleDocumentUpload}
+                      disabled={
+                        !selectedFile ||
+                        !uploadData.name.trim() ||
+                        createDocumentMutation.isPending
+                      }
+                      size="sm"
+                      className="bg-[#00F57A] text-black hover:bg-[#00F57A]/90 disabled:opacity-50"
+                    >
+                      {createDocumentMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                      ) : (
+                        <Upload className="h-4 w-4 mr-1" />
+                      )}
+                      {createDocumentMutation.isPending
+                        ? "Uploading..."
+                        : "Upload"}
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        setShowUploadForm(false);
+                        setSelectedFile(null);
+                        setUploadData({ name: "", type: "other" });
+                      }}
+                      variant="outline"
+                      size="sm"
+                      className="border-gray-700 text-gray-300 hover:bg-gray-800"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Documents List */}
+              {documentsLoading ? (
+                <div className="space-y-3">
+                  {[...Array(2)].map((_, i) => (
+                    <div key={i} className="p-3 rounded border border-gray-700">
+                      <Skeleton className="h-4 w-full mb-2 bg-gray-800" />
+                      <Skeleton className="h-3 w-24 mb-2 bg-gray-800" />
+                      <Skeleton className="h-8 w-full bg-gray-800" />
+                    </div>
+                  ))}
+                </div>
+              ) : documents.length === 0 ? (
+                <div className="text-center py-8">
+                  <FileText className="h-12 w-12 text-gray-600 mx-auto mb-3" />
+                  <p className="text-gray-500 font-mono text-sm">
+                    No documents attached to this application.
+                    <br />
+                    Cast files into the void to begin.
+                  </p>
+                </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-3">
                   {documents.map((doc) => {
                     const docType = documentTypes[doc.type];
                     return (
@@ -700,39 +804,33 @@ export default function ApplicationDetailPage({
                         </div>
 
                         <div className="flex items-center gap-2">
-                          {doc.url && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => window.open(doc.url, "_blank")}
-                              className="flex-1 border-gray-700 text-gray-300 hover:bg-gray-800"
-                            >
-                              <Eye className="h-4 w-4 mr-1" />
-                              View
-                            </Button>
-                          )}
-
-                          {doc.url && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                const link = document.createElement("a");
-                                link.href = doc.url!;
-                                link.download = doc.name;
-                                link.click();
-                              }}
-                              className="border-gray-700 text-gray-300 hover:bg-gray-800"
-                            >
-                              <Download className="h-4 w-4" />
-                            </Button>
-                          )}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleView(doc)}
+                            className="flex-1 border-gray-700 text-gray-300 hover:bg-gray-800"
+                          >
+                            <Eye className="h-4 w-4 mr-1" />
+                            View
+                          </Button>
 
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => handleDeleteDocument(doc.id)}
-                            className="border-red-700 text-red-400 hover:bg-red-900/20"
+                            onClick={() => handleDownload(doc)}
+                            className="border-gray-700 text-gray-300 hover:bg-gray-800"
+                          >
+                            <Download className="h-4 w-4" />
+                          </Button>
+
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              handleDeleteDocument(doc.id, doc.name)
+                            }
+                            disabled={deleteDocumentMutation.isPending}
+                            className="border-red-700 text-red-400 hover:bg-red-900/20 disabled:opacity-50"
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -837,7 +935,7 @@ export default function ApplicationDetailPage({
         }
         onConfirm={confirmDeleteDocument}
         title="Delete Document"
-        description={`Are you sure you want to delete "${deleteDocModal.documentName}"?\n\nThis document is attached to this application and will be permanently removed.\n\nThis action cannot be undone. The file will be consumed by the void, forever.`}
+        description={`Are you sure you want to delete "${deleteDocModal.documentName}"?\n\nThis document will be permanently removed from the void.\n\nThis action cannot be undone. The file will be consumed by the abyss, forever.`}
         confirmText="Delete Forever"
         destructive={true}
       />

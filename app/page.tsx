@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Database,
   Calendar,
@@ -14,25 +14,12 @@ import {
   CheckCircle,
   XCircle,
   Plus,
+  RefreshCw,
 } from "lucide-react";
 import Link from "next/link";
 import { DebugSession } from "@/components/debug-session";
-
-interface Application {
-  id: string;
-  company: string;
-  position: string;
-  status:
-    | "applied"
-    | "assessment"
-    | "interview"
-    | "offer"
-    | "rejected"
-    | "withdrawn";
-  appliedDate: string;
-  nextDate?: string;
-  nextEvent?: string;
-}
+import { useApplications } from "@/hooks/use-applications";
+import type { Application } from "@/lib/api-client";
 
 const statusColors = {
   applied: "bg-blue-500",
@@ -53,113 +40,31 @@ const statusIcons = {
 };
 
 export default function Dashboard() {
-  const [applications, setApplications] = useState<Application[]>([]);
-  const [stats, setStats] = useState({
-    total: 0,
-    pending: 0,
-    interviews: 0,
-    rejections: 0,
+  // Fetch all applications for dashboard stats
+  const { data, isLoading, isError, error, refetch } = useApplications({
+    // Get applications for dashboard overview - use max allowed limit
+    limit: 100,
+    sortBy: "appliedDate",
+    sortOrder: "desc",
   });
 
-  useEffect(() => {
-    // Load applications from localStorage or use dummy data
-    const stored = localStorage.getItem("void-applications");
-    let apps: Application[] = [];
+  const applications = data?.applications || [];
 
-    if (stored) {
-      apps = JSON.parse(stored);
-    }
-
-    // If no stored data, use comprehensive dummy data to showcase features
-    if (apps.length === 0) {
-      apps = [
-        {
-          id: "1",
-          company: "TechCorp",
-          position: "Senior Frontend Developer",
-          status: "interview",
-          appliedDate: "2024-01-15",
-          nextDate: "2024-01-25",
-          nextEvent: "Technical Interview",
-        },
-        {
-          id: "2",
-          company: "StartupXYZ",
-          position: "Full Stack Engineer",
-          status: "rejected",
-          appliedDate: "2024-01-10",
-        },
-        {
-          id: "3",
-          company: "BigTech Inc",
-          position: "Software Engineer",
-          status: "assessment",
-          appliedDate: "2024-01-20",
-          nextDate: "2024-01-28",
-          nextEvent: "Coding Assessment",
-        },
-        {
-          id: "4",
-          company: "InnovateLabs",
-          position: "React Developer",
-          status: "applied",
-          appliedDate: "2024-01-22",
-        },
-        {
-          id: "5",
-          company: "DataDriven Co",
-          position: "Frontend Architect",
-          status: "offer",
-          appliedDate: "2024-01-05",
-          nextDate: "2024-01-30",
-          nextEvent: "Offer Response Deadline",
-        },
-        {
-          id: "6",
-          company: "CloudFirst",
-          position: "Senior Developer",
-          status: "interview",
-          appliedDate: "2024-01-18",
-          nextDate: "2024-01-26",
-          nextEvent: "Final Round Interview",
-        },
-        {
-          id: "7",
-          company: "FinTech Solutions",
-          position: "JavaScript Developer",
-          status: "withdrawn",
-          appliedDate: "2024-01-12",
-        },
-        {
-          id: "8",
-          company: "GreenTech Innovations",
-          position: "Frontend Lead",
-          status: "applied",
-          appliedDate: "2024-01-23",
-        },
-      ];
-
-      // Store dummy data for persistence
-      localStorage.setItem("void-applications", JSON.stringify(apps));
-    }
-
-    setApplications(apps);
-
-    // Calculate stats
-    const total = apps.length;
-    const pending = apps.filter((app: Application) =>
+  // Calculate stats from applications
+  const stats = {
+    total: applications.length,
+    pending: applications.filter((app: Application) =>
       ["applied", "assessment", "interview"].includes(app.status)
-    ).length;
-    const interviews = apps.filter(
+    ).length,
+    interviews: applications.filter(
       (app: Application) => app.status === "interview"
-    ).length;
-    const rejections = apps.filter(
+    ).length,
+    rejections: applications.filter(
       (app: Application) => app.status === "rejected"
-    ).length;
+    ).length,
+  };
 
-    setStats({ total, pending, interviews, rejections });
-  }, []);
-
+  // Get upcoming events (next dates in the future)
   const upcomingEvents = applications
     .filter((app) => app.nextDate && new Date(app.nextDate) > new Date())
     .sort(
@@ -168,12 +73,99 @@ export default function Dashboard() {
     )
     .slice(0, 5);
 
+  // Get recent applications (last 5)
   const recentApplications = applications
     .sort(
       (a, b) =>
         new Date(b.appliedDate).getTime() - new Date(a.appliedDate).getTime()
     )
     .slice(0, 5);
+
+  // Loading skeleton
+  if (isLoading) {
+    return (
+      <div className="flex-1 space-y-6 p-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <SidebarTrigger />
+            <div>
+              <Skeleton className="h-8 w-48 mb-2" />
+              <Skeleton className="h-4 w-64" />
+            </div>
+          </div>
+          <Skeleton className="h-10 w-32" />
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i} className="void-card">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-4 w-4" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-8 w-16 mb-2" />
+                <Skeleton className="h-3 w-32" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-2">
+          <Card className="void-card">
+            <CardHeader>
+              <Skeleton className="h-6 w-48" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-40 w-full" />
+            </CardContent>
+          </Card>
+          <Card className="void-card">
+            <CardHeader>
+              <Skeleton className="h-6 w-48" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-40 w-full" />
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (isError) {
+    return (
+      <div className="flex-1 space-y-6 p-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <SidebarTrigger />
+            <div>
+              <h1 className="font-mono text-3xl font-medium text-white">
+                Dashboard
+              </h1>
+              <p className="text-gray-400 font-mono text-sm">
+                Error loading data from the void.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <Card className="void-card">
+          <CardContent className="p-6 text-center">
+            <p className="text-red-400 mb-4">
+              Failed to load dashboard data:{" "}
+              {error instanceof Error ? error.message : "Unknown error"}
+            </p>
+            <Button onClick={() => refetch()} variant="outline">
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Try Again
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 space-y-6 p-6">

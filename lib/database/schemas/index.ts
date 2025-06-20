@@ -8,9 +8,12 @@
 // Auth domain (current - Phase 1)
 export * from "./auth";
 
+// Applications domain (Phase 1: Complete)
+export * from "./applications";
+export * from "./documents";
+export * from "./settings";
+
 // Future domains will be added here as we implement features:
-// export * from './applications';  // Phase 2: Application tracking
-// export * from './documents';     // Phase 2: Document management
 // export * from './emails';        // Phase 3: Gmail integration
 // export * from './notifications'; // Phase 4: Notification system
 
