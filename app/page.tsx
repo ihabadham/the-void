@@ -19,6 +19,7 @@ import {
 import Link from "next/link";
 import { DebugSession } from "@/components/debug-session";
 import { useApplications } from "@/hooks/use-applications";
+import { formatDate } from "@/lib/utils";
 import type { Application } from "@/lib/api-client";
 
 const statusColors = {
@@ -298,7 +299,7 @@ export default function Dashboard() {
                       </div>
                       <div className="text-right">
                         <p className="text-white text-sm font-mono">
-                          {app.nextDate}
+                          {app.nextDate ? formatDate(app.nextDate) : "TBD"}
                         </p>
                         <Badge
                           variant="secondary"
@@ -358,7 +359,7 @@ export default function Dashboard() {
                       </div>
                       <div className="text-right">
                         <p className="text-white text-sm font-mono">
-                          {app.appliedDate}
+                          {formatDate(app.appliedDate)}
                         </p>
                         <Badge
                           variant="secondary"

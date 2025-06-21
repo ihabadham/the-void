@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Calendar, Clock, AlertCircle, Plus } from "lucide-react";
 import Link from "next/link";
 import { useApplications } from "@/hooks/use-applications";
+import { formatDateRelative } from "@/lib/utils";
 
 interface Application {
   id: string;
@@ -79,21 +80,6 @@ export default function CalendarPage() {
       setPastEvents([]);
     }
   }, [applicationsData]);
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffTime = date.getTime() - now.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    if (diffDays === 0) return "Today";
-    if (diffDays === 1) return "Tomorrow";
-    if (diffDays === -1) return "Yesterday";
-    if (diffDays > 0 && diffDays <= 7) return `In ${diffDays} days`;
-    if (diffDays < 0 && diffDays >= -7) return `${Math.abs(diffDays)} days ago`;
-
-    return date.toLocaleDateString();
-  };
 
   const getUrgencyColor = (dateString: string) => {
     const date = new Date(dateString);
@@ -284,7 +270,7 @@ export default function CalendarPage() {
                       <p
                         className={`text-sm font-mono ${getUrgencyColor(app.nextDate!)}`}
                       >
-                        {formatDate(app.nextDate!)}
+                        {formatDateRelative(app.nextDate!)}
                       </p>
                       <Badge
                         className={`${statusColors[app.status]} text-black text-xs font-mono mt-1`}
@@ -342,7 +328,7 @@ export default function CalendarPage() {
                     </div>
                     <div className="text-right">
                       <p className="text-gray-500 text-sm font-mono">
-                        {formatDate(app.nextDate!)}
+                        {formatDateRelative(app.nextDate!)}
                       </p>
                       <Badge
                         className={`${statusColors[app.status]} text-black text-xs font-mono mt-1 opacity-75`}
