@@ -11,6 +11,10 @@ export function cn(...inputs: ClassValue[]) {
  */
 export function formatDate(dateString: string | Date): string {
   const date = new Date(dateString);
+  if (isNaN(date.getTime())) {
+    console.warn('Invalid date provided to formatDate:', dateString);
+    return 'Invalid Date';
+  }
   return date.toLocaleDateString();
 }
 
