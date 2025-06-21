@@ -44,6 +44,7 @@ import type {
   CreateDocumentData,
   Document,
 } from "@/lib/api-client";
+import { formatDate } from "@/lib/utils";
 
 const statusColors = {
   applied: "bg-blue-500",
@@ -565,7 +566,7 @@ export default function ApplicationDetailPage({
                         Applied Date
                       </Label>
                       <p className="text-white font-mono">
-                        {new Date(application.appliedDate).toLocaleDateString()}
+                        {formatDate(application.appliedDate)}
                       </p>
                     </div>
                     {application.nextDate && (
@@ -574,7 +575,7 @@ export default function ApplicationDetailPage({
                           {application.nextEvent || "Next Event"}
                         </Label>
                         <p className="text-[#00F57A] font-mono">
-                          {new Date(application.nextDate).toLocaleDateString()}
+                          {formatDate(application.nextDate)}
                         </p>
                       </div>
                     )}
@@ -797,10 +798,7 @@ export default function ApplicationDetailPage({
 
                         <div className="text-xs text-gray-400 font-mono mb-3">
                           <p>Size: {formatFileSize(doc.size)}</p>
-                          <p>
-                            Uploaded:{" "}
-                            {new Date(doc.uploadDate).toLocaleDateString()}
-                          </p>
+                          <p>Uploaded: {formatDate(doc.uploadDate)}</p>
                         </div>
 
                         <div className="flex items-center gap-2">
@@ -858,7 +856,7 @@ export default function ApplicationDetailPage({
                       Application Logged
                     </p>
                     <p className="text-gray-400 text-xs font-mono">
-                      {new Date(application.appliedDate).toLocaleDateString()}
+                      {formatDate(application.appliedDate)}
                     </p>
                   </div>
                 </div>
@@ -871,7 +869,7 @@ export default function ApplicationDetailPage({
                         {application.nextEvent || "Upcoming Event"}
                       </p>
                       <p className="text-cyan-400 text-xs font-mono">
-                        {new Date(application.nextDate).toLocaleDateString()}
+                        {formatDate(application.nextDate)}
                       </p>
                     </div>
                   </div>

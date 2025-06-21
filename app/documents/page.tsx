@@ -30,6 +30,7 @@ import {
 } from "@/hooks/use-documents";
 import { useApplications } from "@/hooks/use-applications";
 import type { Document, CreateDocumentData } from "@/lib/api-client";
+import { formatDate } from "@/lib/utils";
 
 const documentTypes = {
   cv: { label: "CV/Resume", color: "bg-[#00F57A]" },
@@ -499,10 +500,7 @@ export default function DocumentsPage() {
                     <div className="text-xs text-gray-400 font-mono mb-3 space-y-1">
                       <p>Application: {application?.company || "Unknown"}</p>
                       <p>Size: {formatFileSize(doc.size)}</p>
-                      <p>
-                        Uploaded:{" "}
-                        {new Date(doc.uploadDate).toLocaleDateString()}
-                      </p>
+                      <p>Uploaded: {formatDate(doc.uploadDate)}</p>
                     </div>
 
                     <div className="flex items-center gap-2">

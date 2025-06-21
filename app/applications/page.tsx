@@ -25,6 +25,7 @@ import {
   useDeleteApplication,
 } from "@/hooks/use-applications";
 import { useDocuments } from "@/hooks/use-documents";
+import { formatDate } from "@/lib/utils";
 import type { Application } from "@/lib/api-client";
 
 const statusColors = {
@@ -281,7 +282,7 @@ export default function ApplicationsPage() {
                   <div className="flex items-center gap-2 text-sm text-gray-400">
                     <Calendar className="h-4 w-4" />
                     <span className="font-mono">
-                      Applied: {new Date(app.appliedDate).toLocaleDateString()}
+                      Applied: {formatDate(app.appliedDate)}
                     </span>
                   </div>
 
@@ -289,8 +290,7 @@ export default function ApplicationsPage() {
                     <div className="flex items-center gap-2 text-sm text-[#00F57A]">
                       <Calendar className="h-4 w-4" />
                       <span className="font-mono">
-                        {app.nextEvent}:{" "}
-                        {new Date(app.nextDate).toLocaleDateString()}
+                        {app.nextEvent}: {formatDate(app.nextDate)}
                       </span>
                     </div>
                   )}

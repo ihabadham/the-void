@@ -16,7 +16,6 @@ export function formatDate(dateString: string | Date): string {
 
 /**
  * Format date with relative time (Today, Tomorrow, etc.)
- * Similar to calendar page but more universal
  */
 export function formatDateRelative(dateString: string | Date): string {
   const date = new Date(dateString);
