@@ -23,9 +23,17 @@ export function formatDate(dateString: string | Date): string {
  */
 export function formatDateRelative(dateString: string | Date): string {
   const date = new Date(dateString);
+  if (isNaN(date.getTime())) {
+    console.warn('Invalid date provided to formatDateRelative:', dateString);
+    return 'Invalid Date';
+  }
+
   const now = new Date();
-  const diffTime = date.getTime() - now.getTime();
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  // Reset time to start of day for accurate day comparison
+  const dateAtMidnight = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const nowAtMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const diffTime = dateAtMidnight.getTime() - nowAtMidnight.getTime();
+  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
 
   if (diffDays === 0) return "Today";
   if (diffDays === 1) return "Tomorrow";
