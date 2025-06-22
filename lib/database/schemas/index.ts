@@ -13,6 +13,9 @@ export * from "./applications";
 export * from "./documents";
 export * from "./settings";
 
+// Outreach domain
+export * from "./outreach";
+
 // Future domains will be added here as we implement features:
 // export * from './emails';
 // export * from './notifications';
