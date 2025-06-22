@@ -5,17 +5,17 @@
  * Each domain (auth, applications, etc.) has its own schema file.
  */
 
-// Auth domain (current - Phase 1)
+// Auth domain
 export * from "./auth";
 
-// Applications domain (Phase 1: Complete)
+// Applications domain
 export * from "./applications";
 export * from "./documents";
 export * from "./settings";
 
 // Future domains will be added here as we implement features:
-// export * from './emails';        // Phase 3: Gmail integration
-// export * from './notifications'; // Phase 4: Notification system
+// export * from './emails';
+// export * from './notifications';
 
 /**
  * Note: This approach allows us to:
