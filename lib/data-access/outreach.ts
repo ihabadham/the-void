@@ -213,3 +213,29 @@ export async function logOutreachBatch(
     return actions;
   });
 }
+
+export interface OutreachActionWithContact extends OutreachAction {
+  contact: OutreachContact;
+}
+
+export async function getOutreachByApplicationId(
+  userId: string,
+  applicationId: string
+): Promise<OutreachActionWithContact[]> {
+  const validatedUserId = validateData(outreachSchemas.id, userId);
+  const validatedAppId = validateData(outreachSchemas.id, applicationId);
+
+  const rows = await database
+    .select()
+    .from(outreachActions)
+    .where(eq(outreachActions.applicationId, validatedAppId))
+    .innerJoin(
+      outreachContacts,
+      eq(outreachActions.contactId, outreachContacts.id)
+    );
+
+  return rows.map((row: any) => ({
+    ...row.outreach_actions,
+    contact: row.outreach_contacts,
+  }));
+}

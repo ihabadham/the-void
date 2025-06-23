@@ -479,14 +479,35 @@ export interface OutreachAction {
   updatedAt: string;
 }
 
+// Contact info returned alongside an outreach action
+export interface OutreachContactInfo {
+  id: string;
+  fullName?: string;
+  headline?: string;
+  linkedinUrl: string;
+  avatarUrl?: string;
+}
+
+export interface OutreachActionWithContact extends OutreachAction {
+  contact: OutreachContactInfo;
+}
+
 // Outreach API client
 export const outreachApi = {
   logOutreach: async (
     payload: LogOutreachPayload
-  ): Promise<ApiResponse<OutreachAction[]>> => {
-    return fetchApi<OutreachAction[]>("/api/outreach", {
+  ): Promise<ApiResponse<OutreachActionWithContact[]>> => {
+    return fetchApi<OutreachActionWithContact[]>("/api/outreach", {
       method: "POST",
       body: JSON.stringify(payload),
     });
+  },
+
+  getApplicationOutreach: async (
+    applicationId: string
+  ): Promise<ApiResponse<OutreachActionWithContact[]>> => {
+    return fetchApi<OutreachActionWithContact[]>(
+      `/api/applications/${applicationId}/outreach`
+    );
   },
 };

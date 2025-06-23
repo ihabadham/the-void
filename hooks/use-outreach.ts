@@ -1,9 +1,9 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import {
   outreachApi,
   type LogOutreachPayload,
-  type OutreachAction,
+  type OutreachActionWithContact,
 } from "@/lib/api-client";
 import { ApiError } from "@/lib/api-client";
 
@@ -26,5 +26,15 @@ export function useLogOutreach() {
         error instanceof ApiError ? error.message : "Failed to log outreach";
       toast({ title: "Error", description: message, variant: "destructive" });
     },
+  });
+}
+
+export function useApplicationOutreach(applicationId: string) {
+  return useQuery({
+    queryKey: ["application", applicationId, "outreach"],
+    queryFn: () => outreachApi.getApplicationOutreach(applicationId),
+    select: (response) => (response.data as OutreachActionWithContact[]) || [],
+    enabled: !!applicationId,
+    staleTime: 5 * 60 * 1000,
   });
 }
