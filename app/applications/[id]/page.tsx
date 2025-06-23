@@ -46,6 +46,7 @@ import type {
 } from "@/lib/api-client";
 import { formatDate } from "@/lib/utils";
 import { OutreachModal } from "@/components/outreach-modal";
+import { useApplicationOutreach } from "@/hooks/use-outreach";
 
 const statusColors = {
   applied: "bg-blue-500",
@@ -95,6 +96,8 @@ export default function ApplicationDetailPage({
 
   const { data: documents = [], isLoading: documentsLoading } =
     useApplicationDocuments(id);
+
+  const { data: outreachActions = [] } = useApplicationOutreach(id);
 
   const updateMutation = useUpdateApplication();
   const deleteMutation = useDeleteApplication();
@@ -854,6 +857,46 @@ export default function ApplicationDetailPage({
                     );
                   })}
                 </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Outreach list */}
+          <Card className="void-card">
+            <CardHeader>
+              <CardTitle className="font-mono text-white">Outreach</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {outreachActions.length === 0 ? (
+                <p className="text-gray-400 font-mono text-sm">
+                  /dev/null &gt; outreach – No humans have been pinged yet
+                </p>
+              ) : (
+                outreachActions.map((action) => (
+                  <div
+                    key={action.id}
+                    className="flex items-center justify-between border-b border-gray-800 py-2"
+                  >
+                    <div className="flex flex-col">
+                      <a
+                        href={action.contact.linkedinUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[#00F57A] font-mono text-sm hover:underline"
+                      >
+                        {action.contact.fullName || action.contact.linkedinUrl}
+                      </a>
+                      {action.contact.headline && (
+                        <span className="text-gray-400 font-mono text-xs">
+                          {action.contact.headline}
+                        </span>
+                      )}
+                    </div>
+                    <Badge className="text-black font-mono text-xs bg-gray-500 capitalize">
+                      {action.status}
+                    </Badge>
+                  </div>
+                ))
               )}
             </CardContent>
           </Card>
