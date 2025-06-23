@@ -459,3 +459,34 @@ export interface UserSettings {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface LogOutreachPayload {
+  applicationId?: string;
+  company?: string;
+  messageBody: string;
+  contacts: string[];
+}
+
+export interface OutreachAction {
+  id: string;
+  contactId: string;
+  applicationId?: string;
+  company?: string;
+  status: "pending" | "accepted" | "ignored" | "other";
+  sentAt: string;
+  respondedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Outreach API client
+export const outreachApi = {
+  logOutreach: async (
+    payload: LogOutreachPayload
+  ): Promise<ApiResponse<OutreachAction[]>> => {
+    return fetchApi<OutreachAction[]>("/api/outreach", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+};
