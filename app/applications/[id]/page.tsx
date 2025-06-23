@@ -45,6 +45,7 @@ import type {
   Document,
 } from "@/lib/api-client";
 import { formatDate } from "@/lib/utils";
+import { OutreachModal } from "@/components/outreach-modal";
 
 const statusColors = {
   applied: "bg-blue-500",
@@ -375,6 +376,22 @@ export default function ApplicationDetailPage({
               View Job
             </Button>
           )}
+
+          {/* Log Outreach Button */}
+          <OutreachModal
+            applicationId={id}
+            company={application.company}
+            trigger={
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-gray-700 text-gray-300 hover:bg-gray-800"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Log Outreach
+              </Button>
+            }
+          />
 
           {!isEditing ? (
             <Button
