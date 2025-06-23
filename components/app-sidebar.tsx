@@ -27,6 +27,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { ConfirmationModal } from "@/components/confirmation-modal";
+import { OutreachModal } from "@/components/outreach-modal";
 
 const menuItems = [
   {
@@ -125,6 +126,18 @@ export function AppSidebar() {
                       <span>Log Application</span>
                     </Link>
                   </SidebarMenuButton>
+                </SidebarMenuItem>
+
+                {/* Quick log outreach via modal */}
+                <SidebarMenuItem>
+                  <OutreachModal
+                    trigger={
+                      <SidebarMenuButton className="hover:bg-gray-900">
+                        <Plus className="h-4 w-4" />
+                        <span>Log Outreach</span>
+                      </SidebarMenuButton>
+                    }
+                  />
                 </SidebarMenuItem>
               </SidebarMenu>
             </SidebarGroupContent>
