@@ -5,11 +5,13 @@ import { commonSchemas } from "./common";
  * Outreach validation schemas
  */
 
+const statusEnum = z.enum(["pending", "accepted", "ignored", "other"], {
+  errorMap: () => ({ message: "Invalid outreach status" }),
+});
+
 export const outreachSchemas = {
   // Status enum validation
-  status: z.enum(["pending", "accepted", "ignored", "other"], {
-    errorMap: () => ({ message: "Invalid outreach status" }),
-  }),
+  status: statusEnum,
 
   /** Contact creation */
   contactCreate: z.object({
@@ -47,9 +49,7 @@ export const outreachSchemas = {
       .max(100, "Company name too long (max 100 characters)")
       .optional(),
     messageId: commonSchemas.uuid.optional(),
-    status: z
-      .enum(["pending", "accepted", "ignored", "other"])
-      .default("pending"),
+    status: statusEnum.default("pending"),
     sentAt: commonSchemas.timestamp.optional(),
     respondedAt: commonSchemas.timestamp.optional().nullable(),
     notes: z
