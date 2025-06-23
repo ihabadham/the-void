@@ -144,3 +144,72 @@ export async function logOutreachAction(
     throw new Error("Failed to log outreach action");
   }
 }
+
+/**
+ * Batch log outreach: upsert message template and create actions for multiple contacts atomically.
+ */
+export interface LogOutreachBatchInput {
+  userId: string;
+  applicationId?: string;
+  company?: string;
+  messageBody: string;
+  contactUrls: string[];
+}
+
+export async function logOutreachBatch(
+  input: LogOutreachBatchInput
+): Promise<OutreachAction[]> {
+  const { userId, applicationId, company, messageBody, contactUrls } = input;
+
+  if (!applicationId && !company) {
+    throw new Error("Either applicationId or company must be provided");
+  }
+
+  if (contactUrls.length === 0) {
+    throw new Error("At least one contact URL is required");
+  }
+
+  // Validate upfront
+  const validatedUserId = validateData(outreachSchemas.id, userId);
+  contactUrls.forEach((url) =>
+    validateData(outreachSchemas.contactCreate.shape.linkedinUrl, url)
+  );
+
+  return await database.transaction(async (tx) => {
+    // Upsert message if applicationId exists
+    let message: OutreachMessage | undefined;
+    if (applicationId) {
+      message = await upsertMessage(validatedUserId, {
+        applicationId,
+        body: messageBody,
+      });
+    }
+
+    const actions: OutreachAction[] = [];
+
+    for (const url of contactUrls) {
+      // Create or get contact
+      const contact = await createOrGetContact(validatedUserId, {
+        linkedinUrl: url,
+      });
+
+      // Insert outreach action
+      const [action] = await tx
+        .insert(outreachActions)
+        .values({
+          userId: validatedUserId,
+          contactId: contact.id,
+          applicationId: applicationId || null,
+          company: company || null,
+          messageId: message?.id || null,
+          status: "pending",
+          sentAt: new Date(),
+        })
+        .returning();
+
+      actions.push(action);
+    }
+
+    return actions;
+  });
+}
