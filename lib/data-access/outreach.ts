@@ -81,31 +81,17 @@ export async function upsertMessage(
       messageData
     );
 
-    // Check if message already exists
-    const existing = await database
-      .select()
-      .from(outreachMessages)
-      .where(eq(outreachMessages.applicationId, validatedData.applicationId))
-      .limit(1);
-
-    if (existing.length) {
-      const [updated] = await database
-        .update(outreachMessages)
-        .set({ body: validatedData.body, updatedAt: new Date() })
-        .where(eq(outreachMessages.id, existing[0].id))
-        .returning();
-      return updated;
-    }
-
-    const [created] = await database
+    // Atomic upsert prevents race condition on unique application_id
+    const [message] = await database
       .insert(outreachMessages)
-      .values({
-        userId: validatedUserId,
-        ...validatedData,
+      .values({ userId: validatedUserId, ...validatedData })
+      .onConflictDoUpdate({
+        target: outreachMessages.applicationId,
+        set: { body: validatedData.body, updatedAt: new Date() },
       })
       .returning();
 
-    return created;
+    return message;
   } catch (error) {
     if (error instanceof ValidationError) {
       console.error("Outreach message validation error:", error.message);
