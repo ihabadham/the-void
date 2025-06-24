@@ -55,7 +55,6 @@ export default function OutreachPage() {
 
     return allOutreachActions.filter((action) => {
       const companyName = action.application?.company || action.company || "";
-      console.log(companyName);
       return companyName
         .toLowerCase()
         .includes(deferredCompanyFilter.toLowerCase());
