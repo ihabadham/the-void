@@ -5,14 +5,16 @@ import { commonSchemas } from "./common";
  * Application validation schemas
  */
 
+const statusEnum = z.enum(
+  ["applied", "assessment", "interview", "offer", "rejected", "withdrawn"],
+  {
+    errorMap: () => ({ message: "Invalid application status" }),
+  }
+);
+
 export const applicationSchemas = {
   // Status enum validation
-  status: z.enum(
-    ["applied", "assessment", "interview", "offer", "rejected", "withdrawn"],
-    {
-      errorMap: () => ({ message: "Invalid application status" }),
-    }
-  ),
+  status: statusEnum,
 
   // Base application schema (for creation)
   create: z.object({
@@ -24,16 +26,7 @@ export const applicationSchemas = {
       100,
       "Position title too long (max 100 characters)"
     ),
-    status: z
-      .enum([
-        "applied",
-        "assessment",
-        "interview",
-        "offer",
-        "rejected",
-        "withdrawn",
-      ])
-      .default("applied"),
+    status: statusEnum.default("applied"),
     appliedDate: commonSchemas.timestamp,
     nextDate: commonSchemas.timestamp.optional(),
     nextEvent: z
@@ -64,16 +57,7 @@ export const applicationSchemas = {
         .min(1, "Position title is required")
         .max(100, "Position title too long (max 100 characters)")
         .optional(),
-      status: z
-        .enum([
-          "applied",
-          "assessment",
-          "interview",
-          "offer",
-          "rejected",
-          "withdrawn",
-        ])
-        .optional(),
+      status: statusEnum.optional(),
       appliedDate: commonSchemas.timestamp.optional(),
       nextDate: commonSchemas.timestamp.nullable().optional(),
       nextEvent: z
