@@ -517,6 +517,16 @@ export const outreachApi = {
     );
   },
 
+  getApplicationOutreachMessage: async (
+    applicationId: string
+  ): Promise<
+    ApiResponse<{ id: string; body: string; applicationId: string } | null>
+  > => {
+    return fetchApi<{ id: string; body: string; applicationId: string } | null>(
+      `/api/applications/${applicationId}/outreach/message`
+    );
+  },
+
   getAllOutreach: async (filters?: {
     status?: "pending" | "accepted" | "ignored" | "other";
     company?: string;

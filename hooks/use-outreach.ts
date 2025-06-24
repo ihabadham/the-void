@@ -25,6 +25,10 @@ export function useLogOutreach() {
         queryClient.invalidateQueries({
           queryKey: ["application", variables.applicationId, "outreach"],
         });
+        // Also invalidate the message template query since we may have created/updated it
+        queryClient.invalidateQueries({
+          queryKey: ["application", variables.applicationId, "message"],
+        });
       }
 
       // Invalidate any future global outreach queries
@@ -45,6 +49,16 @@ export function useApplicationOutreach(applicationId: string) {
     queryKey: ["application", applicationId, "outreach"],
     queryFn: () => outreachApi.getApplicationOutreach(applicationId),
     select: (response) => (response.data as OutreachActionWithContact[]) || [],
+    enabled: !!applicationId,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useApplicationOutreachMessage(applicationId?: string) {
+  return useQuery({
+    queryKey: ["application", applicationId, "message"],
+    queryFn: () => outreachApi.getApplicationOutreachMessage(applicationId!),
+    select: (response) => response.data,
     enabled: !!applicationId,
     staleTime: 5 * 60 * 1000,
   });

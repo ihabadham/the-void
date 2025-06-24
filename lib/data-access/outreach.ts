@@ -72,6 +72,39 @@ export async function createOrGetContact(
 }
 
 /**
+ * Get message template for an application.
+ */
+export async function getMessageByApplicationId(
+  userId: string,
+  applicationId: string
+): Promise<OutreachMessage | null> {
+  try {
+    const validatedUserId = validateData(outreachSchemas.id, userId);
+    const validatedAppId = validateData(outreachSchemas.id, applicationId);
+
+    const [message] = await database
+      .select()
+      .from(outreachMessages)
+      .where(
+        and(
+          eq(outreachMessages.userId, validatedUserId),
+          eq(outreachMessages.applicationId, validatedAppId)
+        )
+      )
+      .limit(1);
+
+    return message || null;
+  } catch (error) {
+    if (error instanceof ValidationError) {
+      console.error("Message fetch validation error:", error.message);
+      throw error;
+    }
+    console.error("Error fetching message template:", error);
+    throw new Error("Failed to fetch message template");
+  }
+}
+
+/**
  * Upsert (insert or update) a message template for an application.
  */
 export async function upsertMessage(

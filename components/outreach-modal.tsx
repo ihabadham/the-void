@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogTrigger,
@@ -14,7 +14,10 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useLogOutreach } from "@/hooks/use-outreach";
+import {
+  useLogOutreach,
+  useApplicationOutreachMessage,
+} from "@/hooks/use-outreach";
 import { Loader2, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -51,6 +54,20 @@ export function OutreachModal({
 
   const logMutation = useLogOutreach();
   const { toast } = useToast();
+
+  // Fetch existing message template for this application
+  const { data: existingMessage } =
+    useApplicationOutreachMessage(applicationId);
+
+  // Load existing message template when modal opens
+  useEffect(() => {
+    if (open && existingMessage && existingMessage.body) {
+      setMessageBody(existingMessage.body);
+    } else if (open && !existingMessage) {
+      // Clear message if no existing template
+      setMessageBody("");
+    }
+  }, [open, existingMessage]);
 
   const handleUrlInputKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" || e.key === ",") {
