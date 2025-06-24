@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useDeferredValue, useMemo } from "react";
 import {
   Plus,
   Filter,
@@ -31,20 +31,41 @@ export default function OutreachPage() {
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [companyFilter, setCompanyFilter] = useState<string>("");
 
-  // Build filters object for API call
-  const filters = {
+  // Defer the company filter to prevent API calls on every keystroke
+  const deferredCompanyFilter = useDeferredValue(companyFilter);
+
+  // Only use status filter for API calls, handle company filtering client-side
+  const apiFilters = {
     ...(statusFilter && {
       status: statusFilter as "pending" | "accepted" | "ignored" | "other",
     }),
-    ...(companyFilter && { company: companyFilter }),
   };
 
   const {
-    data: outreachActions = [],
+    data: allOutreachActions = [],
     isLoading,
     isError,
-  } = useAllOutreach(Object.keys(filters).length > 0 ? filters : undefined);
+  } = useAllOutreach(
+    Object.keys(apiFilters).length > 0 ? apiFilters : undefined
+  );
+
+  // Client-side filtering for smooth search experience
+  const outreachActions = useMemo(() => {
+    if (!deferredCompanyFilter) return allOutreachActions;
+
+    return allOutreachActions.filter((action) => {
+      const companyName = action.application?.company || action.company || "";
+      console.log(companyName);
+      return companyName
+        .toLowerCase()
+        .includes(deferredCompanyFilter.toLowerCase());
+    });
+  }, [allOutreachActions, deferredCompanyFilter]);
+
   const updateStatusMutation = useUpdateOutreachStatus();
+
+  // Check if we're showing stale results during search
+  const isSearching = companyFilter !== deferredCompanyFilter;
 
   const handleStatusUpdate = (
     actionId: string,
@@ -253,12 +274,18 @@ export default function OutreachPage() {
       {/* Results */}
       <Card className="void-card">
         <CardHeader>
-          <CardTitle className="font-mono text-white">
+          <CardTitle className="font-mono text-white flex items-center gap-2">
             Outreach Transmissions ({outreachActions.length})
+            {isSearching && (
+              <span className="text-xs text-[#00F57A] animate-pulse">
+                • Filtering...
+              </span>
+            )}
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          {/* Only show loading skeleton on initial load, not during search */}
+          {isLoading && !allOutreachActions.length ? (
             <div className="text-center py-8">
               <p className="text-gray-400 font-mono">
                 Loading transmissions from the void...
@@ -266,16 +293,36 @@ export default function OutreachPage() {
             </div>
           ) : outreachActions.length === 0 ? (
             <div className="text-center py-8">
-              <p className="text-gray-400 font-mono text-sm">
-                /dev/null &gt; outreach – No transmissions found in the digital
-                abyss
-              </p>
-              <p className="text-gray-500 font-mono text-xs mt-2">
-                Cast your first outreach into the corporate void above
-              </p>
+              {allOutreachActions.length === 0 ? (
+                <>
+                  <p className="text-gray-400 font-mono text-sm">
+                    /dev/null &gt; outreach – No transmissions found in the
+                    digital abyss
+                  </p>
+                  <p className="text-gray-500 font-mono text-xs mt-2">
+                    Cast your first outreach into the corporate void above
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-gray-400 font-mono text-sm">
+                    /dev/null &gt; search – No matches found in the filtered
+                    abyss
+                  </p>
+                  <p className="text-gray-500 font-mono text-xs mt-2">
+                    Try adjusting your filters or clear them to see all
+                    transmissions
+                  </p>
+                </>
+              )}
             </div>
           ) : (
-            <div className="space-y-4">
+            <div
+              className="space-y-4 transition-opacity duration-200"
+              style={{
+                opacity: isSearching ? 0.7 : 1,
+              }}
+            >
               {outreachActions.map((action) => (
                 <div
                   key={action.id}
