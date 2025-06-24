@@ -228,7 +228,12 @@ export async function getOutreachByApplicationId(
   const rows = await database
     .select()
     .from(outreachActions)
-    .where(eq(outreachActions.applicationId, validatedAppId))
+    .where(
+      and(
+        eq(outreachActions.applicationId, validatedAppId),
+        eq(outreachActions.userId, validatedUserId)
+      )
+    )
     .innerJoin(
       outreachContacts,
       eq(outreachActions.contactId, outreachContacts.id)
