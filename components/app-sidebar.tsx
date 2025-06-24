@@ -41,6 +41,11 @@ const menuItems = [
     icon: Database,
   },
   {
+    title: "Outreach",
+    url: "/outreach",
+    icon: Terminal,
+  },
+  {
     title: "Calendar",
     url: "/calendar",
     icon: Calendar,
