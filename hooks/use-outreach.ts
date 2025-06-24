@@ -49,3 +49,46 @@ export function useApplicationOutreach(applicationId: string) {
     staleTime: 5 * 60 * 1000,
   });
 }
+
+export function useAllOutreach(filters?: {
+  status?: "pending" | "accepted" | "ignored" | "other";
+  company?: string;
+}) {
+  return useQuery({
+    queryKey: ["outreach", "all", filters],
+    queryFn: () => outreachApi.getAllOutreach(filters),
+    select: (response) => (response.data as OutreachActionWithContact[]) || [],
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useUpdateOutreachStatus() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: ({
+      actionId,
+      status,
+      respondedAt,
+    }: {
+      actionId: string;
+      status: "pending" | "accepted" | "ignored" | "other";
+      respondedAt?: string;
+    }) => outreachApi.updateOutreachStatus(actionId, status, respondedAt),
+    onSuccess: (response, variables) => {
+      toast({
+        title: "Status updated",
+        description: `Outreach status changed to ${variables.status}.`,
+      });
+
+      // Invalidate all outreach queries to refresh the data
+      queryClient.invalidateQueries({ queryKey: ["outreach"] });
+    },
+    onError: (error: any) => {
+      const message =
+        error instanceof ApiError ? error.message : "Failed to update status";
+      toast({ title: "Error", description: message, variant: "destructive" });
+    },
+  });
+}

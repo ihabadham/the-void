@@ -490,6 +490,12 @@ export interface OutreachContactInfo {
 
 export interface OutreachActionWithContact extends OutreachAction {
   contact: OutreachContactInfo;
+  application?: {
+    id: string;
+    company: string;
+    position: string;
+    status: string;
+  };
 }
 
 // Outreach API client
@@ -509,5 +515,28 @@ export const outreachApi = {
     return fetchApi<OutreachActionWithContact[]>(
       `/api/applications/${applicationId}/outreach`
     );
+  },
+
+  getAllOutreach: async (filters?: {
+    status?: "pending" | "accepted" | "ignored" | "other";
+    company?: string;
+  }): Promise<ApiResponse<OutreachActionWithContact[]>> => {
+    const params = new URLSearchParams();
+    if (filters?.status) params.append("status", filters.status);
+    if (filters?.company) params.append("company", filters.company);
+
+    const queryString = params.toString() ? `?${params.toString()}` : "";
+    return fetchApi<OutreachActionWithContact[]>(`/api/outreach${queryString}`);
+  },
+
+  updateOutreachStatus: async (
+    actionId: string,
+    status: "pending" | "accepted" | "ignored" | "other",
+    respondedAt?: string
+  ): Promise<ApiResponse<OutreachAction>> => {
+    return fetchApi<OutreachAction>(`/api/outreach/${actionId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status, respondedAt }),
+    });
   },
 };
