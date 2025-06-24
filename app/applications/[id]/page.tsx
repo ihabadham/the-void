@@ -866,7 +866,7 @@ export default function ApplicationDetailPage({
             <CardHeader>
               <CardTitle className="font-mono text-white">Outreach</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
+            <CardContent className="space-y-3">
               {outreachActions.length === 0 ? (
                 <p className="text-gray-400 font-mono text-sm">
                   /dev/null &gt; outreach – No humans have been pinged yet
@@ -875,26 +875,39 @@ export default function ApplicationDetailPage({
                 outreachActions.map((action) => (
                   <div
                     key={action.id}
-                    className="flex items-center justify-between border-b border-gray-800 py-2"
+                    className="border-b border-gray-800 pb-3 last:border-b-0"
                   >
-                    <div className="flex flex-col">
-                      <a
-                        href={action.contact.linkedinUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-[#00F57A] font-mono text-sm hover:underline"
-                      >
-                        {action.contact.fullName || action.contact.linkedinUrl}
-                      </a>
-                      {action.contact.headline && (
-                        <span className="text-gray-400 font-mono text-xs">
-                          {action.contact.headline}
-                        </span>
-                      )}
+                    <div className="flex items-start justify-between">
+                      <div className="flex flex-col flex-1 min-w-0">
+                        <a
+                          href={action.contact.linkedinUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[#00F57A] font-mono text-sm hover:underline truncate"
+                        >
+                          {action.contact.fullName ||
+                            action.contact.linkedinUrl}
+                        </a>
+                        {action.contact.headline && (
+                          <span className="text-gray-400 font-mono text-xs mt-1">
+                            {action.contact.headline}
+                          </span>
+                        )}
+                        <div className="flex items-center gap-4 mt-2">
+                          <span className="text-gray-500 font-mono text-xs">
+                            Sent: {formatDate(action.sentAt)}
+                          </span>
+                          {action.respondedAt && (
+                            <span className="text-cyan-400 font-mono text-xs">
+                              Responded: {formatDate(action.respondedAt)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <Badge className="text-black font-mono text-xs bg-gray-500 capitalize ml-2 flex-shrink-0">
+                        {action.status}
+                      </Badge>
                     </div>
-                    <Badge className="text-black font-mono text-xs bg-gray-500 capitalize">
-                      {action.status}
-                    </Badge>
                   </div>
                 ))
               )}
