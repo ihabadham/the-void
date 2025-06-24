@@ -218,6 +218,11 @@ export interface OutreachActionWithContact extends OutreachAction {
   contact: OutreachContact;
 }
 
+type OutreachActionJoinResult = {
+  outreach_actions: OutreachAction;
+  outreach_contacts: OutreachContact;
+};
+
 export async function getOutreachByApplicationId(
   userId: string,
   applicationId: string
@@ -239,7 +244,7 @@ export async function getOutreachByApplicationId(
       eq(outreachActions.contactId, outreachContacts.id)
     );
 
-  return rows.map((row: any) => ({
+  return rows.map((row: OutreachActionJoinResult) => ({
     ...row.outreach_actions,
     contact: row.outreach_contacts,
   }));
