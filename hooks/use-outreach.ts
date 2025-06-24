@@ -14,12 +14,23 @@ export function useLogOutreach() {
   return useMutation({
     mutationFn: (payload: LogOutreachPayload) =>
       outreachApi.logOutreach(payload),
-    onSuccess: (response) => {
+    onSuccess: (response, variables) => {
       toast({
         title: "Outreach logged",
         description: `Logged ${response.data?.length || 0} contacts into the void.`,
       });
-      // Invalidate relevant queries later (e.g., outreach list)
+
+      // Invalidate the application's outreach query if we have an applicationId
+      if (variables.applicationId) {
+        queryClient.invalidateQueries({
+          queryKey: ["application", variables.applicationId, "outreach"],
+        });
+      }
+
+      // Invalidate any future global outreach queries
+      queryClient.invalidateQueries({
+        queryKey: ["outreach"],
+      });
     },
     onError: (error: any) => {
       const message =
