@@ -5,11 +5,13 @@ import { commonSchemas } from "./common";
  * Document validation schemas
  */
 
+const typeEnum = z.enum(["cv", "cover-letter", "portfolio", "other"], {
+  errorMap: () => ({ message: "Invalid document type" }),
+});
+
 export const documentSchemas = {
   // Document type enum
-  type: z.enum(["cv", "cover-letter", "portfolio", "other"], {
-    errorMap: () => ({ message: "Invalid document type" }),
-  }),
+  type: typeEnum,
 
   // Create document
   create: z.object({
@@ -17,7 +19,7 @@ export const documentSchemas = {
       255,
       "Document name too long (max 255 characters)"
     ),
-    type: z.enum(["cv", "cover-letter", "portfolio", "other"]).default("other"),
+    type: typeEnum.default("other"),
     url: commonSchemas.url, // Validate URL format while keeping it optional
     size: z
       .number()
