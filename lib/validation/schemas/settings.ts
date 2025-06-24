@@ -4,11 +4,13 @@ import { z } from "zod";
  * User settings validation schemas
  */
 
+const exportFormatEnum = z.enum(["json", "csv"], {
+  errorMap: () => ({ message: "Export format must be 'json' or 'csv'" }),
+});
+
 export const userSettingsSchemas = {
   // Export format enum
-  exportFormat: z.enum(["json", "csv"], {
-    errorMap: () => ({ message: "Export format must be 'json' or 'csv'" }),
-  }),
+  exportFormat: exportFormatEnum,
 
   // Create user settings
   create: z.object({
@@ -16,7 +18,7 @@ export const userSettingsSchemas = {
     autoSync: z.boolean().default(false),
     darkMode: z.boolean().default(true),
     emailReminders: z.boolean().default(true),
-    exportFormat: z.enum(["json", "csv"]).default("json"),
+    exportFormat: exportFormatEnum.default("json"),
     dataRetention: z
       .number()
       .int("Data retention must be a whole number")
@@ -32,7 +34,7 @@ export const userSettingsSchemas = {
       autoSync: z.boolean().optional(),
       darkMode: z.boolean().optional(),
       emailReminders: z.boolean().optional(),
-      exportFormat: z.enum(["json", "csv"]).optional(),
+      exportFormat: exportFormatEnum.optional(),
       dataRetention: z
         .number()
         .int("Data retention must be a whole number")
