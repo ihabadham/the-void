@@ -1,4 +1,4 @@
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 
 import { database } from "../database/connection";
 import {
@@ -12,6 +12,10 @@ import {
   type OutreachAction,
   type OutreachMessage,
 } from "../database/schemas/outreach";
+import {
+  applications,
+  type Application,
+} from "../database/schemas/applications";
 import { validateData, ValidationError } from "../validation/utils";
 import { outreachSchemas } from "../validation/schemas/outreach";
 
@@ -216,11 +220,18 @@ export async function logOutreachBatch(
 
 export interface OutreachActionWithContact extends OutreachAction {
   contact: OutreachContact;
+  application?: Application;
 }
 
 type OutreachActionJoinResult = {
   outreach_actions: OutreachAction;
   outreach_contacts: OutreachContact;
+};
+
+type OutreachActionWithApplicationJoinResult = {
+  outreach_actions: OutreachAction;
+  outreach_contacts: OutreachContact;
+  applications: Application | null;
 };
 
 export async function getOutreachByApplicationId(
@@ -248,4 +259,99 @@ export async function getOutreachByApplicationId(
     ...row.outreach_actions,
     contact: row.outreach_contacts,
   }));
+}
+
+/**
+ * Get all outreach actions for a user with optional filtering
+ */
+export interface OutreachFilters {
+  status?: "pending" | "accepted" | "ignored" | "other";
+  company?: string;
+  startDate?: Date;
+  endDate?: Date;
+}
+
+export async function getAllUserOutreach(
+  userId: string,
+  filters?: OutreachFilters
+): Promise<OutreachActionWithContact[]> {
+  const validatedUserId = validateData(outreachSchemas.id, userId);
+
+  // Build where conditions array
+  const whereConditions = [eq(outreachActions.userId, validatedUserId)];
+
+  if (filters?.status) {
+    whereConditions.push(eq(outreachActions.status, filters.status));
+  }
+
+  if (filters?.company) {
+    whereConditions.push(eq(outreachActions.company, filters.company));
+  }
+
+  const rows = await database
+    .select()
+    .from(outreachActions)
+    .where(and(...whereConditions))
+    .innerJoin(
+      outreachContacts,
+      eq(outreachActions.contactId, outreachContacts.id)
+    )
+    .leftJoin(applications, eq(outreachActions.applicationId, applications.id))
+    .orderBy(desc(outreachActions.sentAt));
+
+  return rows.map((row: OutreachActionWithApplicationJoinResult) => ({
+    ...row.outreach_actions,
+    contact: row.outreach_contacts,
+    application: row.applications || undefined,
+  }));
+}
+
+/**
+ * Update outreach action status (e.g., pending -> accepted)
+ */
+export async function updateOutreachStatus(
+  userId: string,
+  actionId: string,
+  status: "pending" | "accepted" | "ignored" | "other",
+  respondedAt?: Date
+): Promise<OutreachAction> {
+  try {
+    const validatedUserId = validateData(outreachSchemas.id, userId);
+    const validatedActionId = validateData(outreachSchemas.id, actionId);
+    const validatedStatus = validateData(outreachSchemas.status, status);
+
+    const updateData: any = {
+      status: validatedStatus,
+      updatedAt: new Date(),
+    };
+
+    // Set respondedAt if status is accepted/ignored and date provided
+    if ((status === "accepted" || status === "ignored") && respondedAt) {
+      updateData.respondedAt = respondedAt;
+    }
+
+    const [updated] = await database
+      .update(outreachActions)
+      .set(updateData)
+      .where(
+        and(
+          eq(outreachActions.id, validatedActionId),
+          eq(outreachActions.userId, validatedUserId)
+        )
+      )
+      .returning();
+
+    if (!updated) {
+      throw new Error("Outreach action not found or not authorized");
+    }
+
+    return updated;
+  } catch (error) {
+    if (error instanceof ValidationError) {
+      console.error("Outreach status update validation error:", error.message);
+      throw error;
+    }
+    console.error("Error updating outreach status:", error);
+    throw new Error("Failed to update outreach status");
+  }
 }
