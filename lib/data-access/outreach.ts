@@ -353,7 +353,10 @@ export async function updateOutreachStatus(
     const validatedActionId = validateData(outreachSchemas.id, actionId);
     const validatedStatus = validateData(outreachSchemas.status, status);
 
-    const updateData: any = {
+    const updateData: Partial<Pick<NewOutreachAction, 'status' | 'updatedAt' | 'respondedAt'>> = {
+      status: validatedStatus,
+      updatedAt: new Date(),
+    };
       status: validatedStatus,
       updatedAt: new Date(),
     };
