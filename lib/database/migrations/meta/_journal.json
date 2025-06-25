@@ -36,6 +36,13 @@
       "when": 1750405750249,
       "tag": "0004_groovy_vengeance",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1750598741798,
+      "tag": "0005_powerful_payback",
+      "breakpoints": true
     }
   ]
 }
