@@ -23,6 +23,7 @@ import {
   Eye,
   Download,
   Plus,
+  Edit,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -69,6 +70,8 @@ export default function ApplicationDetailPage({
 }) {
   const { id } = React.use(params);
   const [isEditing, setIsEditing] = useState(false);
+  const [isEditingNotes, setIsEditingNotes] = useState(false);
+  const [notesContent, setNotesContent] = useState("");
   const [formData, setFormData] = useState<Partial<CreateApplicationData>>({});
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showUploadForm, setShowUploadForm] = useState(false);
@@ -247,6 +250,36 @@ export default function ApplicationDetailPage({
 
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  // Notes-specific handlers
+  const handleNotesEdit = () => {
+    if (!application) return;
+    setNotesContent(application.notes || "");
+    setIsEditingNotes(true);
+  };
+
+  const handleNotesSave = async () => {
+    if (!application) return;
+
+    try {
+      await updateMutation.mutateAsync({
+        id: application.id,
+        data: {
+          notes: notesContent.trim() || undefined,
+        },
+      });
+
+      setIsEditingNotes(false);
+    } catch (error) {
+      // Error handling is done in the mutation hook
+    }
+  };
+
+  const handleNotesCancel = () => {
+    if (!application) return;
+    setNotesContent(application.notes || "");
+    setIsEditingNotes(false);
   };
 
   // Loading state
@@ -597,11 +630,54 @@ export default function ApplicationDetailPage({
           </Card>
 
           <Card className="void-card">
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="font-mono text-white">Notes</CardTitle>
+              {!isEditing && !isEditingNotes && (
+                <Button
+                  onClick={handleNotesEdit}
+                  size="sm"
+                  className="bg-[#00F57A] text-black hover:bg-[#00F57A]/90"
+                >
+                  <Edit className="h-4 w-4 mr-1" />
+                  Edit
+                </Button>
+              )}
             </CardHeader>
             <CardContent>
-              {isEditing ? (
+              {isEditingNotes ? (
+                <div className="space-y-4">
+                  <Textarea
+                    value={notesContent}
+                    onChange={(e) => setNotesContent(e.target.value)}
+                    placeholder="Additional notes, contacts, or preparation points..."
+                    rows={6}
+                    className="bg-black border-gray-700 text-white placeholder:text-gray-500"
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={handleNotesSave}
+                      disabled={updateMutation.isPending}
+                      size="sm"
+                      className="bg-[#00F57A] text-black hover:bg-[#00F57A]/90 disabled:opacity-50"
+                    >
+                      {updateMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Save className="h-4 w-4 mr-2" />
+                      )}
+                      {updateMutation.isPending ? "Saving..." : "Save"}
+                    </Button>
+                    <Button
+                      onClick={handleNotesCancel}
+                      variant="outline"
+                      size="sm"
+                      className="border-gray-700 text-gray-300 hover:bg-gray-800"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              ) : isEditing ? (
                 <Textarea
                   value={formData.notes || ""}
                   onChange={(e) => handleInputChange("notes", e.target.value)}
