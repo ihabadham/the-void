@@ -46,6 +46,8 @@ import type {
   Document,
 } from "@/lib/api-client";
 import { formatDate } from "@/lib/utils";
+import { OutreachModal } from "@/components/outreach-modal";
+import { useApplicationOutreach } from "@/hooks/use-outreach";
 
 const statusColors = {
   applied: "bg-blue-500",
@@ -97,6 +99,8 @@ export default function ApplicationDetailPage({
 
   const { data: documents = [], isLoading: documentsLoading } =
     useApplicationDocuments(id);
+
+  const { data: outreachActions = [] } = useApplicationOutreach(id);
 
   const updateMutation = useUpdateApplication();
   const deleteMutation = useDeleteApplication();
@@ -408,6 +412,22 @@ export default function ApplicationDetailPage({
               View Job
             </Button>
           )}
+
+          {/* Log Outreach Button */}
+          <OutreachModal
+            applicationId={id}
+            company={application.company}
+            trigger={
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-gray-700 text-gray-300 hover:bg-gray-800"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Log Outreach
+              </Button>
+            }
+          />
 
           {!isEditing ? (
             <Button
@@ -913,6 +933,59 @@ export default function ApplicationDetailPage({
                     );
                   })}
                 </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Outreach list */}
+          <Card className="void-card">
+            <CardHeader>
+              <CardTitle className="font-mono text-white">Outreach</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {outreachActions.length === 0 ? (
+                <p className="text-gray-400 font-mono text-sm">
+                  /dev/null &gt; outreach – No humans have been pinged yet
+                </p>
+              ) : (
+                outreachActions.map((action) => (
+                  <div
+                    key={action.id}
+                    className="border-b border-gray-800 pb-3 last:border-b-0"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex flex-col flex-1 min-w-0">
+                        <a
+                          href={action.contact.linkedinUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[#00F57A] font-mono text-sm hover:underline truncate"
+                        >
+                          {action.contact.fullName ||
+                            action.contact.linkedinUrl}
+                        </a>
+                        {action.contact.headline && (
+                          <span className="text-gray-400 font-mono text-xs mt-1">
+                            {action.contact.headline}
+                          </span>
+                        )}
+                        <div className="flex items-center gap-4 mt-2">
+                          <span className="text-gray-500 font-mono text-xs">
+                            Sent: {formatDate(action.sentAt)}
+                          </span>
+                          {action.respondedAt && (
+                            <span className="text-cyan-400 font-mono text-xs">
+                              Responded: {formatDate(action.respondedAt)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <Badge className="text-black font-mono text-xs bg-gray-500 capitalize ml-2 flex-shrink-0">
+                        {action.status}
+                      </Badge>
+                    </div>
+                  </div>
+                ))
               )}
             </CardContent>
           </Card>

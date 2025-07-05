@@ -459,3 +459,94 @@ export interface UserSettings {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface LogOutreachPayload {
+  applicationId?: string;
+  company?: string;
+  messageBody: string;
+  contacts: string[];
+}
+
+export interface OutreachAction {
+  id: string;
+  contactId: string;
+  applicationId?: string;
+  company?: string;
+  status: "pending" | "accepted" | "ignored" | "other";
+  sentAt: string;
+  respondedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Contact info returned alongside an outreach action
+export interface OutreachContactInfo {
+  id: string;
+  fullName?: string;
+  headline?: string;
+  linkedinUrl: string;
+  avatarUrl?: string;
+}
+
+export interface OutreachActionWithContact extends OutreachAction {
+  contact: OutreachContactInfo;
+  application?: {
+    id: string;
+    company: string;
+    position: string;
+    status: string;
+  };
+}
+
+// Outreach API client
+export const outreachApi = {
+  logOutreach: async (
+    payload: LogOutreachPayload
+  ): Promise<ApiResponse<OutreachActionWithContact[]>> => {
+    return fetchApi<OutreachActionWithContact[]>("/api/outreach", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  getApplicationOutreach: async (
+    applicationId: string
+  ): Promise<ApiResponse<OutreachActionWithContact[]>> => {
+    return fetchApi<OutreachActionWithContact[]>(
+      `/api/applications/${applicationId}/outreach`
+    );
+  },
+
+  getApplicationOutreachMessage: async (
+    applicationId: string
+  ): Promise<
+    ApiResponse<{ id: string; body: string; applicationId: string } | null>
+  > => {
+    return fetchApi<{ id: string; body: string; applicationId: string } | null>(
+      `/api/applications/${applicationId}/outreach/message`
+    );
+  },
+
+  getAllOutreach: async (filters?: {
+    status?: "pending" | "accepted" | "ignored" | "other";
+    company?: string;
+  }): Promise<ApiResponse<OutreachActionWithContact[]>> => {
+    const params = new URLSearchParams();
+    if (filters?.status) params.append("status", filters.status);
+    if (filters?.company) params.append("company", filters.company);
+
+    const queryString = params.toString() ? `?${params.toString()}` : "";
+    return fetchApi<OutreachActionWithContact[]>(`/api/outreach${queryString}`);
+  },
+
+  updateOutreachStatus: async (
+    actionId: string,
+    status: "pending" | "accepted" | "ignored" | "other",
+    respondedAt?: string
+  ): Promise<ApiResponse<OutreachAction>> => {
+    return fetchApi<OutreachAction>(`/api/outreach/${actionId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status, respondedAt }),
+    });
+  },
+};
