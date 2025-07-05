@@ -23,10 +23,10 @@ The Void is your command center for the job hunt abyss. It integrates with Gmail
 git clone git@github.com:ihabadham/the-void.git
 
 # Install dependencies
-npm install
+pnpm install
 
 # Run the development server
-npm run dev
+pnpm dev
 ```
 
 ## Features
